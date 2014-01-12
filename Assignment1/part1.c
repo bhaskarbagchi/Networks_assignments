@@ -6,7 +6,7 @@
 
 #define FREQUENCY_INTERPOLATION 500
 #define FREQUENCY_GENERATION 500
-#define FREQUENCY_SAMPLING 500
+#define FREQUENCY_SAMPLING 125
 #define NO_WAVEFORMS 5
 #define PI 3.14159265358979323846
 
@@ -14,13 +14,13 @@
 double MAX_FREQUENCY;
 double MIN_FREQUENCY;
 
-
 /* Function prototypes */
-void generatePlot(FILE* fp, double* x, double* y, int N);
+void interpolate(double* x, double* y);
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t);
 void printWaveform(double** F, double** t);
 double* generateQuantizedWaveform(double* x, double* y, double S, int num_lvls);
 double* addNoise(double* x, double* y, double noise);
+
 /* Main */
 int main(int argc, char const *argv[])
 {
@@ -56,6 +56,7 @@ int main(int argc, char const *argv[])
 
 		qw = generateQuantizedWaveform(t[0], F[0], Amax, num_lvls);
 		noisy_qw = addNoise(t[0], qw, noise);
+		interpolate(t[0], noisy_qw);
 
 		free(qw);
 		free(noisy_qw);
@@ -72,31 +73,45 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 /* Functions*/
-void generatePlot(FILE* fp, double* x, double* y, int N) {
+void interpolate(double* x, double* y) {
+	int N;
+	double i, m, xi, yi, *y_sample, *x_sample;
+	FILE* fp;
+
+	fp = fopen("wInterpol.dat", "w");
+
+	m = (double) FREQUENCY_INTERPOLATION / FREQUENCY_SAMPLING;
+	y_sample = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+	x_sample = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+
+	/* Sampling at receiver end. */
+	fprintf (fp, "# Discrete values\n");
+	for (i = 0.0, N = 0; i <= FREQUENCY_INTERPOLATION; i = i + m)
+	{
+		x_sample[N] = x[(int) i];
+		y_sample[N] = y[(int) i];
+		fprintf (fp, "%g %g\n", x_sample[N], y_sample[N]);
+		N++;
+	}
+
 	gsl_interp_accel *acc = gsl_interp_accel_alloc ();
 	const gsl_interp_type *t = gsl_interp_cspline_periodic; 
 	gsl_spline *spline = gsl_spline_alloc (t, N);
-
-	int i; double xi, yi;
-
-	fprintf (fp, "# Discrete values\n");
-	for (i = 0; i < N; i++)
-	{
-	  fprintf (fp, "%g %g\n", x[i], y[i]);
-	}
+	gsl_spline_init (spline, x_sample, y_sample, N);
 
 	fprintf (fp, "# Interpolated values\n");
-	gsl_spline_init (spline, x, y, N);
-
 	for (i = 0; i <= FREQUENCY_INTERPOLATION; i++)
 	{
-	  xi = (1 - i / FREQUENCY_INTERPOLATION) * x[0] + (i / FREQUENCY_INTERPOLATION) * x[N-1];
+	  xi = (double) i * x_sample[N - 1] / FREQUENCY_INTERPOLATION;
 	  yi = gsl_spline_eval (spline, xi, acc);
 	  fprintf (fp, "%g %g\n", xi, yi);
 	}
 
 	gsl_spline_free (spline);
 	gsl_interp_accel_free (acc);
+	free(x_sample);
+	free(y_sample);
+	fclose(fp);
 }
 
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t) {
@@ -157,7 +172,7 @@ double* generateQuantizedWaveform(double* x, double* y, double S, int num_lvls) 
 
 	double *qw, *lvls, *threshold;
 
-	qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+	qw = (double*) malloc((FREQUENCY_INTERPOLATION + 1) * sizeof(double));
 	lvls = (double*) malloc(num_lvls * sizeof(double));
 	threshold = (double*) malloc((num_lvls - 1) * sizeof(double));
 
@@ -171,7 +186,7 @@ double* generateQuantizedWaveform(double* x, double* y, double S, int num_lvls) 
 		threshold[i] = (lvls[i] + lvls[i + 1]) / 2;
 	}
 
-	for (i = 0; i <= FREQUENCY_SAMPLING; ++i)
+	for (i = 0; i <= FREQUENCY_INTERPOLATION; ++i)
 	{
 		flag = 1;
 		for (j = 0; j < num_lvls - 1; ++j) {
@@ -201,9 +216,9 @@ double* addNoise(double* x, double* y, double noise) {
 	FILE *fp;
 	fp = fopen("wQuantNoisy.dat", "w");
 
-	noisy_qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+	noisy_qw = (double*) malloc((FREQUENCY_INTERPOLATION + 1) * sizeof(double));
 
-	for (i = 0; i <= FREQUENCY_SAMPLING; ++i)
+	for (i = 0; i <= FREQUENCY_INTERPOLATION; ++i)
 	{
 		if(rand() % 2) {
 			noisy_qw[i] = y[i] + ( 2.0 * noise * rand() / RAND_MAX  - noise );
