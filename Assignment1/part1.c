@@ -4,27 +4,27 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 
-#define FREQUENCY_INTERPOLATION 500
-#define FREQUENCY_GENERATION 500
-#define FREQUENCY_SAMPLING 125
+#define FREQUENCY_INTERPOLATION 1000
+#define FREQUENCY_GENERATION 1000
 #define NO_WAVEFORMS 5
 #define PI 3.14159265358979323846
 
 /* Globals */
 double MAX_FREQUENCY;
 double MIN_FREQUENCY;
+int FREQUENCY_SAMPLING;
 
 /* Function prototypes */
 void interpolate(double* x, double* y);
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t);
 void printWaveform(double** F, double** t);
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double** qx, double** qy);
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy);
 double* addNoise(double* x, double* y, double noise);
 
 /* Main */
 int main(int argc, char const *argv[])
 {
-	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw;
+	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency;
 	int i, num_lvls;
 
 	printf("Enter maximum frequency (in Hz): ");
@@ -50,11 +50,15 @@ int main(int argc, char const *argv[])
 
 	printf("Enter maximum noise value N (Range: (-N,N)): ");
 	scanf("%lf", &noise);
+        
+        printf("The maximum frequency of generated wave is %lf\n", MAX_FREQUENCY);
 
 	printf("Enter number of quantization levels: ");
 	while(scanf("%d", &num_lvls) != EOF) {
 
-		generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, &qx, &qw);
+		printf("Enter sampling frequency:");
+                scanf("%lf", &sampling_frequency);
+                generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
 		noisy_qw = addNoise(qx, qw, noise);
 		interpolate(qx, noisy_qw);
 
@@ -163,13 +167,14 @@ void printWaveform(double** F, double** t) {
 	}
 }
 
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double** qx, double** qy) {
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy) {
 	int i, j, flag;
 	FILE *fp;
 	fp = fopen("wQuant.dat", "w");
 
 	double *qw, *t, *lvls, *threshold, k, m;
-
+        FREQUENCY_SAMPLING = (sampling_frequency * 2 )/ MIN_FREQUENCY;
+        
 	*qy = qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
         *qx = t = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
 	lvls = (double*) malloc(num_lvls * sizeof(double));
