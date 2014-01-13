@@ -15,16 +15,17 @@ double MIN_FREQUENCY;
 int FREQUENCY_SAMPLING;
 
 /* Function prototypes */
-void interpolate(double* x, double* y);
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY);
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t);
 void printWaveform(double** F, double** t);
 void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy);
 double* addNoise(double* x, double* y, double noise);
+double MeanSquaredError(double* original, double* interpolated);
 
 /* Main */
 int main(int argc, char const *argv[])
 {
-	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency;
+	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency, *interpolatedX, *interpolatedY;
 	int i, num_lvls;
 
 	printf("Enter maximum frequency (in Hz): ");
@@ -44,6 +45,9 @@ int main(int argc, char const *argv[])
 		F[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
 		t[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
 	}
+        
+        interpolatedX = (double *)malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
+        interpolatedY = (double *)malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
 
 	generateWaveform(fmax, Amax, fs, As, F, t);
 	printWaveform(F, t);
@@ -60,7 +64,8 @@ int main(int argc, char const *argv[])
                 scanf("%lf", &sampling_frequency);
                 generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
 		noisy_qw = addNoise(qx, qw, noise);
-		interpolate(qx, noisy_qw);
+		interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+                printf("Mean Squared Error for this sampling is %lf.\n\n", MeanSquaredError(F[0], interpolatedY));
 
 		free(qw);
                 free(qx);
@@ -78,26 +83,13 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 /* Functions */
-void interpolate(double* x, double* y) {
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY) {
 	int i;
 	double xi, yi;
 	FILE* fp;
 
 	fp = fopen("wInterpol.dat", "w");
-/*
-	m = (double) FREQUENCY_INTERPOLATION / FREQUENCY_SAMPLING;
-	y_sample = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
-	x_sample = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
 
-	fprintf (fp, "# Discrete values\n");
-	for (i = 0.0, N = 0; i <= FREQUENCY_INTERPOLATION; i = i + m)
-	{
-		x_sample[N] = x[(int) i];
-		y_sample[N] = y[(int) i];
-		fprintf (fp, "%g %g\n", x_sample[N], y_sample[N]);
-		N++;
-	}
-*/
 	gsl_interp_accel *acc = gsl_interp_accel_alloc ();
 	const gsl_interp_type *t = gsl_interp_cspline_periodic;
 	gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING);
@@ -109,6 +101,8 @@ void interpolate(double* x, double* y) {
 	  xi = (double) i * x[FREQUENCY_SAMPLING - 1] / FREQUENCY_INTERPOLATION;
 	  yi = gsl_spline_eval (spline, xi, acc);
 	  fprintf (fp, "%g %g\n", xi, yi);
+          interpolatedX[i] = xi;
+          interpolatedY[i] = yi;
 	}
 
 	gsl_spline_free (spline);
@@ -238,4 +232,14 @@ double* addNoise(double* x, double* y, double noise) {
 
 	fclose(fp);
 	return noisy_qw;
+}
+
+double MeanSquaredError(double* original, double* interpolated){
+        double MSE = 0.0;
+        int i;
+        for(i=0; i<=FREQUENCY_GENERATION; i++){
+                MSE+=pow((original[i]-interpolated[i]),2);
+        }
+        MSE/=(FREQUENCY_GENERATION+1);
+        return (sqrt(MSE));
 }
