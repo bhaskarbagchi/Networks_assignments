@@ -36,18 +36,18 @@ Experiment design
 Key results
 -----------
 
-*	At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax.
+* At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax.
 
-*	B in our experiment is fmax since we superimpose waves with frequency in the range (0, fmax) chosen randomly.
-	Hence,
-	2fmax * log(L) ≤ fmax * log(1 + SNR)				... Shannon-Nyquist criterion.
+* B in our experiment is fmax since we superimpose waves with frequency in the range (0, fmax) chosen randomly.
+  Hence,
+  2fmax * log(L) ≤ fmax * log(1 + SNR)				... Shannon-Nyquist criterion.
 
-=>	Effective number of distingushable levels L shoud be sqrt(1 + SNR) where SNR is signal to noise ratio.  
+  Effective number of distingushable levels L shoud be sqrt(1 + SNR) where SNR is signal to noise ratio.  
 
-	This similarity in form between Shannon's capacity and Nyquist criterion should not be interpreted to mean that L 
-	pulse levels can be literally sent without any confusion; more levels are needed, to allow for redundant coding and 
-	error correction, but the net data rate that can be approached with coding is equivalent to using that L in Nyquist 
-	criterion.
+  This similarity in form between Shannon's capacity and Nyquist criterion should not be interpreted to mean that L 
+  pulse levels can be literally sent without any confusion; more levels are needed, to allow for redundant coding and 
+  error correction, but the net data rate that can be approached with coding is equivalent to using that L in Nyquist 
+  criterion.
 
 References
 ----------
