@@ -85,7 +85,7 @@ int main(int argc, char const *argv[])
                 scanf("%lf", &sampling_frequency);
                 if(sampling_frequency<=0){
                         printf("Sampling frequency must be a positive quantity.\n");
-                        printf("Enters the details again. Enter number of quantization levels (or press Ctrl-D to continue): ");
+                        printf("Enter the details again.\nEnter number of quantization levels (or press Ctrl-D to continue): ");
                         continue;
                 }
                 generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
