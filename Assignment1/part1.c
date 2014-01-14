@@ -16,11 +16,11 @@ double MIN_FREQUENCY;
 int FREQUENCY_SAMPLING;
 
 /* Function prototypes */
-void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY);
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag);
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t);
 void printWaveform(double** F, double** t);
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy);
-double* addNoise(double* x, double* y, double noise);
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag);
+double* addNoise(double* x, double* y, double noise, int pflag);
 double MeanSquaredError(double* original, double* interpolated);
 
 /* Main */
@@ -88,9 +88,9 @@ int main(int argc, char const *argv[])
                         printf("Enter the details again.\nEnter number of quantization levels (or press Ctrl-D to continue): ");
                         continue;
                 }
-                generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
-                noisy_qw = addNoise(qx, qw, noise);
-                interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+                generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw, 1);
+                noisy_qw = addNoise(qx, qw, noise, 1);
+                interpolate(qx, noisy_qw, interpolatedX, interpolatedY, 1);
                 printf("Mean Squared Error for this sampling is %lf.\n", MeanSquaredError(F[0], interpolatedY));
                 free(qw);
                 free(qx);
@@ -105,9 +105,9 @@ int main(int argc, char const *argv[])
         double* D;
         D = (double *)malloc(((fmax*3 - i)/20) * sizeof(double));
         for(; i<=(fmax*3); i+=20){
-                generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw);
-                        noisy_qw = addNoise(qx, qw, noise);
-                        interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+                generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw, 0);
+                        noisy_qw = addNoise(qx, qw, noise, 0);
+                        interpolate(qx, noisy_qw, interpolatedX, interpolatedY, 0);
                 D[j] = MeanSquaredError(F[0], interpolatedY);
                         free(qw);
                 free(qx);
@@ -137,31 +137,31 @@ int main(int argc, char const *argv[])
         return 0;
 }
 /* Functions */
-void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY) {
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag) {
         int i;
         double xi, yi;
         FILE* fp;
 
-        fp = fopen("wInterpol.dat", "w");
+        if(pflag) fp = fopen("wInterpol.dat", "w");
 
         gsl_interp_accel *acc = gsl_interp_accel_alloc ();
         const gsl_interp_type *t = gsl_interp_cspline_periodic;
         gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING);
         gsl_spline_init (spline, x, y, FREQUENCY_SAMPLING);
 
-        fprintf (fp, "# Interpolated values\n");
+        if(pflag) fprintf (fp, "# Interpolated values\n");
         for (i = 0; i <= FREQUENCY_INTERPOLATION; i++)
         {
                 xi = (double) i * x[FREQUENCY_SAMPLING - 1] / FREQUENCY_INTERPOLATION;
                 yi = gsl_spline_eval (spline, xi, acc);
-                fprintf (fp, "%g %g\n", xi, yi);
+                if(pflag) fprintf (fp, "%g %g\n", xi, yi);
                 interpolatedX[i] = xi;
                 interpolatedY[i] = yi;
         }
 
         gsl_spline_free (spline);
         gsl_interp_accel_free (acc);
-        fclose(fp);
+        if(pflag) fclose(fp);
 }
 
 void generateWaveform(double fmax, double Amax, double* fs, double* As, double** F, double** t) {
@@ -215,10 +215,10 @@ void printWaveform(double** F, double** t) {
         }
 }
 
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy) {
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag) {
         int i, j, flag;
         FILE *fp;
-        fp = fopen("wQuant.dat", "w");
+        if(pflag) fp = fopen("wQuant.dat", "w");
 
         double *qw, *t, *lvls, *threshold, k, m;
         FREQUENCY_SAMPLING = (sampling_frequency * 2 )/ MIN_FREQUENCY;
@@ -255,20 +255,20 @@ void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, dou
                         t[i] = x[(int)k];
                 }
 
-                fprintf (fp, "%g %g\n", t[i], qw[i]);
+                if(pflag) fprintf (fp, "%g %g\n", t[i], qw[i]);
                 i++;
         }
 
         free(threshold);
         free(lvls);
-        fclose(fp);
+        if(pflag) fclose(fp);
 }
 
-double* addNoise(double* x, double* y, double noise) {
+double* addNoise(double* x, double* y, double noise, int pflag) {
         int i;
         double *noisy_qw;
         FILE *fp;
-        fp = fopen("wQuantNoisy.dat", "w");
+        if(pflag) fp = fopen("wQuantNoisy.dat", "w");
 
         noisy_qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
 
@@ -281,10 +281,10 @@ double* addNoise(double* x, double* y, double noise) {
                         noisy_qw[i] = y[i];
                 }
 
-                fprintf(fp, "%g %g\n", x[i], noisy_qw[i]);
+                if(pflag) fprintf(fp, "%g %g\n", x[i], noisy_qw[i]);
         }
 
-        fclose(fp);
+        if(pflag) fclose(fp);
         return noisy_qw;
 }
 
