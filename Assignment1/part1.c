@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 
@@ -27,6 +28,8 @@ int main(int argc, char const *argv[])
 {
 	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency, *interpolatedX, *interpolatedY;
 	int i, num_lvls;
+
+	srand(time(NULL));
 
 	printf("Enter maximum frequency (in Hz): ");
 	scanf("%lf", &fmax);
@@ -57,39 +60,37 @@ int main(int argc, char const *argv[])
         
         printf("The maximum frequency of generated wave is %lf\n", MAX_FREQUENCY);
 
+    printf("****Test*Case****\n");
 	printf("Enter number of quantization levels: ");
 	while(scanf("%d", &num_lvls) != EOF) {
 
 		printf("Enter sampling frequency:");
-                scanf("%lf", &sampling_frequency);
-                generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
+        scanf("%lf", &sampling_frequency);
+        generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
 		noisy_qw = addNoise(qx, qw, noise);
 		interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
-                printf("Mean Squared Error for this sampling is %lf.\n\n", MeanSquaredError(F[0], interpolatedY));
-
+        printf("Mean Squared Error for this sampling is %lf.\n", MeanSquaredError(F[0], interpolatedY));
 		free(qw);
-                free(qx);
+        free(qx);
 		free(noisy_qw);
-		printf("\nEnter number of quantization levels (or press Ctrl-D to exit): ");
+		printf("****Test*Case****\n");
+		printf("Enter number of quantization levels (or press Ctrl-D to continue): ");
 	}
 
-/////////////////////////////////////////////////////
-// Estimation
-
-        i = (int)(MAX_FREQUENCY) - ((int)MAX_FREQUENCY%10);
+        i = (int)(fmax) - ((int)fmax%10);
         int L = (int) sqrt(1 + ((double)Amax/noise));
         int j = 0;
         double* D;
-        D = (double *)malloc(((MAX_FREQUENCY*3 - i)/50) * sizeof(double));
-        for(; i<=(MAX_FREQUENCY*3); i+=50){
-                generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw);
-		noisy_qw = addNoise(qx, qw, noise);
-		interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
-                D[j] = MeanSquaredError(F[0], interpolatedY);
-		free(qw);
-                free(qx);
-		free(noisy_qw);
-		j++;
+        D = (double *)malloc(((fmax*3 - i)/20) * sizeof(double));
+        for(; i<=(fmax*3); i+=20){
+        	generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw);
+			noisy_qw = addNoise(qx, qw, noise);
+			interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+        	D[j] = MeanSquaredError(F[0], interpolatedY);
+			free(qw);
+        	free(qx);
+			free(noisy_qw);
+			j++;
         }
         
         int Dindex = 1;
@@ -101,9 +102,8 @@ int main(int argc, char const *argv[])
                 }
         }
         
-        printf("\nThe estimated maximum frequency is about %d.\n\n", (int)((int)(MAX_FREQUENCY) - ((int)MAX_FREQUENCY%10) + 50 * Dindex));
-
-/////////////////////////////////////////////////////
+        printf("\n****Estimation****\n");
+        printf("The estimated maximum frequency is about %lf.\n\n", (fmax + 20 * Dindex) / 2.0 );
 
 	for (i = 0; i <= NO_WAVEFORMS; ++i)
 	{

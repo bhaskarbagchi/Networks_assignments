@@ -1,0 +1,4 @@
+!.gitignore
+*.dat
+*.out
+*.ps
