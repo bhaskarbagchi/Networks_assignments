@@ -4,15 +4,18 @@ Introduction
 *Transmitting any analog signal over a chanl is always done by converting it to digital(quantized) data. But the level of quantization is affected by the bandwidth of the channel used for transmission. In such cases we compromise with a similar wave reconstructed by interpolating the quantized data at the reciever end.
 
 * Nyquist criterion:
-For a a frequency (fmax) limited waveform, quantized with L levels, will require at least 2fmax * log(L) bits to be transmitted per second where L is no. of quantization levels.
+For a a frequency (fmax) limited waveform, quantized with L levels, will require at least 2fmax * log(L) bits to be
+transmitted per second where L is no. of quantization levels.
 
 * Shannon's result:
 Bits transmitted per second should not exceed Blog(1+SNR), B being the bandwidth of the channel.
+=======
 
 Thus, combning the above results
 	2fmax * log(L) ≤ B * log(1+SNR).
 
-If these L levels are not sufficient to quantize the signal satisfactorily, either L can be increased as far as possible or fmax has to be decreased.
+If these L levels are not sufficient to quantize the signal satisfactorily, either L can be increased as far as possible
+or fmax has to be decreased.
 
 Experiment design
 -----------------
@@ -32,16 +35,17 @@ Experiment design
 
 * From the plot of mean squared error vs. sampling frequencies, fmax is predicted according to Nyquist criterion at
   L = sqrt(1 + SNR).
-  At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax. Hence, the rate of change of slope of the plot should be maximum around 2*fmax and hence fmax is predicted.
+  At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax.
+  Hence, the rate of change of slope of the plot should be maximum around 2*fmax and hence fmax is predicted.
 
 Key results
 -----------
 
-*	At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax.
+* At sampling frequency greater than 2*fmax the mean squared error is very low and rises fairly quickly below 2*fmax.
 
-*	B in our experiment is fmax since we superimpose waves with frequency in the range (0, fmax) chosen randomly.
-	Hence,
-	2fmax * log(L) ≤ fmax * log(1 + SNR)				... Shannon-Nyquist criterion.
+* B in our experiment is fmax since we superimpose waves with frequency in the range (0, fmax) chosen randomly.
+  Hence,
+  2fmax * log(L) ≤ fmax * log(1 + SNR)				... Shannon-Nyquist criterion.
 
 => Effective number of distingushable levels L shoud be sqrt(1 + SNR) where SNR is signal to noise ratio.  
 
