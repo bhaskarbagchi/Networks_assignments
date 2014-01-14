@@ -26,56 +26,78 @@ double MeanSquaredError(double* original, double* interpolated);
 /* Main */
 int main(int argc, char const *argv[])
 {
-	double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency, *interpolatedX, *interpolatedY;
-	int i, num_lvls;
+        double fmax, Amax, noise, *As, *fs, **F, **t, *qx, *qw, *noisy_qw, sampling_frequency, *interpolatedX, *interpolatedY;
+        int i, num_lvls;
 
-	srand(time(NULL));
+        srand(time(NULL));
 
-	printf("Enter maximum frequency (in Hz): ");
-	scanf("%lf", &fmax);
+        printf("Enter maximum frequency (in Hz): ");
+        scanf("%lf", &fmax);
+        while(fmax<0){
+                printf("Frequency can't be negative. Enter maximum frequency (In Hz.): ");
+                scanf("%lf", &fmax);
+        }
 
-	printf("Enter maximum amplitude (max. signal strength): ");
-	scanf("%lf", &Amax);
+        printf("Enter maximum amplitude (max. signal strength): ");
+        scanf("%lf", &Amax);
+        while(Amax<0){
+                printf("Amplitude can't be negative. Enter maximum amplitude: ");
+                scanf("%lf", &Amax);
+        }
+        
+        As = (double*) malloc((NO_WAVEFORMS + 1) * sizeof(double));
+        fs = (double*) malloc((NO_WAVEFORMS + 1) * sizeof(double));
 
-	As = (double*) malloc((NO_WAVEFORMS + 1) * sizeof(double));
-	fs = (double*) malloc((NO_WAVEFORMS + 1) * sizeof(double));
+        F = (double**) malloc((NO_WAVEFORMS + 1) * sizeof(double*));
+        t = (double**) malloc((NO_WAVEFORMS + 1) * sizeof(double*));
 
-	F = (double**) malloc((NO_WAVEFORMS + 1) * sizeof(double*));
-	t = (double**) malloc((NO_WAVEFORMS + 1) * sizeof(double*));
-
-	for (i = 0; i <= NO_WAVEFORMS; ++i)
-	{
-		F[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
-		t[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
-	}
+        for (i = 0; i <= NO_WAVEFORMS; ++i)
+        {
+                F[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
+                t[i] = (double*) malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
+        }
         
         interpolatedX = (double *)malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
         interpolatedY = (double *)malloc((FREQUENCY_GENERATION + 1) * sizeof(double));
 
-	generateWaveform(fmax, Amax, fs, As, F, t);
-	printWaveform(F, t);
+        generateWaveform(fmax, Amax, fs, As, F, t);
+        printWaveform(F, t);
 
-	printf("Enter maximum noise value N (Range: (-N,N)): ");
-	scanf("%lf", &noise);
+        printf("Enter maximum noise value N (Range: (-N,N)): ");
+        scanf("%lf", &noise);
+        while(noise<0){
+                printf("Maximum noise can't be negative. Enter maximum noise value N (Range: (-N,N)): ");
+                scanf("%lf", &noise);
+        }
+        
         
         printf("The maximum frequency of generated wave is %lf\n", MAX_FREQUENCY);
 
-    printf("****Test*Case****\n");
-	printf("Enter number of quantization levels: ");
-	while(scanf("%d", &num_lvls) != EOF) {
+        printf("****Test*Case****\n");
+        printf("Enter number of quantization levels: ");
+        while(scanf("%d", &num_lvls) != EOF) {
 
-		printf("Enter sampling frequency:");
-        scanf("%lf", &sampling_frequency);
-        generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
-		noisy_qw = addNoise(qx, qw, noise);
-		interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
-        printf("Mean Squared Error for this sampling is %lf.\n", MeanSquaredError(F[0], interpolatedY));
-		free(qw);
-        free(qx);
-		free(noisy_qw);
-		printf("****Test*Case****\n");
-		printf("Enter number of quantization levels (or press Ctrl-D to continue): ");
-	}
+                if(num_lvls<0){
+                        printf("Quantization level must be positive value. Enter number of quantization levels (or press Ctrl-D to continue): ");
+                        continue;
+                }
+                printf("Enter sampling frequency:");
+                scanf("%lf", &sampling_frequency);
+                if(sampling_frequency<0){
+                        printf("Sampling frequency must be a positive quantity.\n");
+                        printf("Enters the details again. Enter number of quantization levels (or press Ctrl-D to continue): ");
+                        continue;
+                }
+                generateQuantizedWaveform(t[0], F[0], Amax, num_lvls, sampling_frequency, &qx, &qw);
+                noisy_qw = addNoise(qx, qw, noise);
+                interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+                printf("Mean Squared Error for this sampling is %lf.\n", MeanSquaredError(F[0], interpolatedY));
+                free(qw);
+                free(qx);
+                free(noisy_qw);
+                printf("****Test*Case****\n");
+                printf("Enter number of quantization levels (or press Ctrl-D to continue): ");
+        }
 
         i = (int)(fmax) - ((int)fmax%10);
         int L = (int) sqrt(1 + ((double)Amax/noise));
