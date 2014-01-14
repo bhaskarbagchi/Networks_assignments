@@ -1,13 +1,15 @@
 Introduction
 ------------
 
+*Transmitting any analog signal over a chanl is always done by converting it to digital(quantized) data. But the level of quantization is affected by the bandwidth of the channel used for transmission. In such cases we compromise with a similar wave reconstructed by interpolating the quantized data at the reciever end.
+
 * Nyquist criterion:
 For a a frequency (fmax) limited waveform, quantized with L levels, will require at least 2fmax * log(L) bits to be transmitted per second where L is no. of quantization levels.
 
 * Shannon's result:
-Bits transmitted per second should not exceed Blog(1+SNR) B being the bandwidth of the channel.
+Bits transmitted per second should not exceed Blog(1+SNR), B being the bandwidth of the channel.
 
-Thus,
+Thus, combning the above results
 	2fmax * log(L) ≤ B * log(1+SNR).
 
 If these L levels are not sufficient to quantize the signal satisfactorily, either L can be increased as far as possible or fmax has to be decreased.
@@ -20,11 +22,13 @@ Experiment design
 
 * The composite signal is then sampled at the given frequency and  quantized with given no. of quantization levels. 
 
-* Noise is randomly added to the quantized waveform within a given maximum noise both positive and negative. 
+* Noise is randomly added to the quantized waveform within a given maximum noise both positive and negative. (This is to simulate the noise added in the transmission channel)
 
 * At the receiver's end the noisy quantized waveform is then reconstructed using cubic spline interpolation. 
 
-* Mean squared error is calculated and displayed for the given test case. 
+* Mean squared error is calculated and displayed for the given different test cases where sampling frequency and quantization level are taken as input from user. 
+
+* To predict maximum frequency, the wave is sampled in different frequencies.
 
 * From the plot of mean squared error vs. sampling frequencies, fmax is predicted according to Nyquist criterion at
   L = sqrt(1 + SNR).
@@ -39,10 +43,10 @@ Key results
 	Hence,
 	2fmax * log(L) ≤ fmax * log(1 + SNR)				... Shannon-Nyquist criterion.
 
-=>	Effective number of distingushable levels L shoud be sqrt(1 + SNR) where SNR is signal to noise ratio.  
+=> Effective number of distingushable levels L shoud be sqrt(1 + SNR) where SNR is signal to noise ratio.  
 
-	This similarity in form between Shannon's capacity and Nyquist criterion should not be interpreted to mean that L pulse levels can be literally sent without any confusion; more levels are needed, to allow for redundant coding and error correction, but the net data rate that can be approached with coding is equivalent to using that L in Nyquist criterion.
+=> We observe that once the number of quantization levels greater than or equal to L as per Shannon-Nyquist criterion, the Mean Squared Error is largely effected by the sampling frequency. As the frequency is less than 2 * fmax, the MSE is quite high, but when it is above 2 * fmax, MSE is comparatively low.
 
-References
-----------
-* Wikipedia article: Noisy channel coding theorem and capacity
+=> Although MSE keeps on decreasing but for a range of frequencies the rate of decrease of MSE is high in sampling frequencies below 2 * fmax and that is comparatively low after when sampling frequencies are greater thatn 2 * fmax.
+
+=> In our experiment MSE varied from 180 to 500 for frequencies below 2*fmax and that remained quite low. But in some cases since the waves superimposed are randomly generated, in some cases we got remarkably poor results also where we found MSE greater 200 even for frequencies above 2 * fmax. In such cases we had poor results for maximum frequency prediction also.
