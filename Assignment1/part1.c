@@ -73,6 +73,38 @@ int main(int argc, char const *argv[])
 		printf("\nEnter number of quantization levels (or press Ctrl-D to exit): ");
 	}
 
+/////////////////////////////////////////////////////
+// Estimation
+
+        i = (int)(MAX_FREQUENCY) - ((int)MAX_FREQUENCY%10);
+        int L = (int) sqrt(1 + ((double)Amax/noise));
+        int j = 0;
+        double* D;
+        D = (double *)malloc(((MAX_FREQUENCY*3 - i)/50) * sizeof(double));
+        for(; i<=(MAX_FREQUENCY*3); i+=50){
+                generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw);
+		noisy_qw = addNoise(qx, qw, noise);
+		interpolate(qx, noisy_qw, interpolatedX, interpolatedY);
+                D[j] = MeanSquaredError(F[0], interpolatedY);
+		free(qw);
+                free(qx);
+		free(noisy_qw);
+		j++;
+        }
+        
+        int Dindex = 1;
+        double Ddiff = 0.0;
+        for(i=1; i<j; i++){
+                if((D[i] - D[i-1])>Ddiff){
+                        Ddiff = D[i] - D[i-1];
+                        Dindex = i;
+                }
+        }
+        
+        printf("\nThe estimated maximum frequency is about %d.\n\n", (int)((int)(MAX_FREQUENCY) - ((int)MAX_FREQUENCY%10) + 50 * Dindex));
+
+/////////////////////////////////////////////////////
+
 	for (i = 0; i <= NO_WAVEFORMS; ++i)
 	{
 		free(F[i]);
