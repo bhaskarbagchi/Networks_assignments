@@ -100,34 +100,34 @@ int main(int argc, char const *argv[])
                 printf("Enter number of quantization levels (or press Ctrl-D to continue): ");
         }
 
-        i = (int)(fmax) - ((int)fmax%10);
+        int initial = (int)fmax;
+        int final = 3*(int)fmax;
+        int num = (initial - final)/20 + 1;
         int L = (int) sqrt(1 + ((double)Amax/noise));
-        int j = 0;
+        //int i;
         double* D;
-        D = (double *)malloc(((fmax*3 - i)/20) * sizeof(double));
-        for(; i<=(fmax*3); i+=20){
-                generateQuantizedWaveform(t[0], F[0], Amax, L, i, &qx, &qw, 0);
-                        noisy_qw = addNoise(qx, qw, noise, 0);
-                        interpolate(qx, noisy_qw, interpolatedX, interpolatedY, 0);
-                D[j] = MeanSquaredError(F[0], interpolatedY);
-                        free(qw);
+        D = (double *)malloc(num*sizeof(double));
+        for(i=0; i<num; i++){
+                generateQuantizedWaveform(t[0], F[0], Amax, L, (initial + i*20), &qx, &qw, 0);
+                noisy_qw = addNoise(qx, qw, noise, 0);
+                interpolate(qx, noisy_qw, interpolatedX, interpolatedY, 0);
+                D[i] = MeanSquaredError(F[0], interpolatedY);
+                free(qw);
                 free(qx);
-                        free(noisy_qw);
-                        j++;
+                free(noisy_qw);
         }
-        
         int Dindex = 1;
         double Ddiff = 0.0;
-        for(i=1; i<j; i++){
-                if((D[i] - D[i-1])>Ddiff){
+        for(i = 0; i< num; i++){
+                if((D[i]-D[i-1])>Ddiff){
                         Ddiff = D[i] - D[i-1];
                         Dindex = i;
                 }
         }
-        
         printf("\n****Estimation****\n");
-        printf("The estimated maximum frequency is about %lf.\n\n", (fmax + 20 * Dindex) / 2.0 );
+        printf("The estimated maximum frequency is about %lf.\n\n", (initial + 20 * Dindex) / 2.0 );
 
+        free(D);
         for (i = 0; i <= NO_WAVEFORMS; ++i)
         {
                 free(F[i]);
