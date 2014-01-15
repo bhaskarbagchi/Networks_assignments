@@ -146,13 +146,13 @@ void interpolate(double* x, double* y, double* interpolatedX, double* interpolat
 
         gsl_interp_accel *acc = gsl_interp_accel_alloc ();
         const gsl_interp_type *t = gsl_interp_cspline_periodic;
-        gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING);
-        gsl_spline_init (spline, x, y, FREQUENCY_SAMPLING);
+        gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING + 1);
+        gsl_spline_init (spline, x, y, FREQUENCY_SAMPLING + 1);
 
         if(pflag) fprintf (fp, "# Interpolated values\n");
         for (i = 0; i <= FREQUENCY_INTERPOLATION; i++)
         {
-                xi = (double) i * x[FREQUENCY_SAMPLING - 1] / FREQUENCY_INTERPOLATION;
+                xi = (double) i * x[FREQUENCY_SAMPLING] / FREQUENCY_INTERPOLATION;
                 yi = gsl_spline_eval (spline, xi, acc);
                 if(pflag) fprintf (fp, "%g %g\n", xi, yi);
                 interpolatedX[i] = xi;
@@ -221,7 +221,7 @@ void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, dou
         if(pflag) fp = fopen("wQuant.dat", "w");
 
         double *qw, *t, *lvls, *threshold, k, m;
-        FREQUENCY_SAMPLING = (sampling_frequency * 2 )/ MIN_FREQUENCY;
+        FREQUENCY_SAMPLING = (sampling_frequency * 2 ) / MIN_FREQUENCY + 1;
         
         *qy = qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
         *qx = t = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
@@ -258,6 +258,22 @@ void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, dou
                 if(pflag) fprintf (fp, "%g %g\n", t[i], qw[i]);
                 i++;
         }
+
+        flag = 1;
+        for (j = 0; j < num_lvls - 1; ++j) {
+                if( y[FREQUENCY_INTERPOLATION] < threshold[j] ) {
+                        qw[FREQUENCY_SAMPLING] = lvls[j];
+                        t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+                        flag = 0;
+                        break;
+                }
+        }
+        if(flag) {
+                qw[FREQUENCY_SAMPLING] = lvls[num_lvls - 1];
+                t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+        }
+
+        if(pflag) fprintf (fp, "%g %g\n", t[FREQUENCY_SAMPLING], qw[FREQUENCY_SAMPLING]);
 
         free(threshold);
         free(lvls);
