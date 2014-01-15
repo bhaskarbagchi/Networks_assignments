@@ -9,6 +9,7 @@
 #define FREQUENCY_GENERATION 1000
 #define NO_WAVEFORMS 5
 #define PI 3.14159265358979323846
+#define epsilon 0.00001
 
 /* Globals */
 double MAX_FREQUENCY;
@@ -259,21 +260,26 @@ void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, dou
                 i++;
         }
 
-        flag = 1;
-        for (j = 0; j < num_lvls - 1; ++j) {
-                if( y[FREQUENCY_INTERPOLATION] < threshold[j] ) {
-                        qw[FREQUENCY_SAMPLING] = lvls[j];
-                        t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
-                        flag = 0;
-                        break;
+        if(t[i-1] < x[FREQUENCY_INTERPOLATION]) {
+                flag = 1;
+                for (j = 0; j < num_lvls - 1; ++j) {
+                        if( y[FREQUENCY_INTERPOLATION] < threshold[j] ) {
+                                qw[FREQUENCY_SAMPLING] = lvls[j];
+                                t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+                                flag = 0;
+                                break;
+                        }
                 }
-        }
-        if(flag) {
-                qw[FREQUENCY_SAMPLING] = lvls[num_lvls - 1];
-                t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
-        }
+                if(flag) {
+                        qw[FREQUENCY_SAMPLING] = lvls[num_lvls - 1];
+                        t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+                }
 
-        if(pflag) fprintf (fp, "%g %g\n", t[FREQUENCY_SAMPLING], qw[FREQUENCY_SAMPLING]);
+                if(pflag) fprintf (fp, "%g %g\n", t[FREQUENCY_SAMPLING], qw[FREQUENCY_SAMPLING]);
+        }
+        else {
+                FREQUENCY_SAMPLING--;
+        }
 
         free(threshold);
         free(lvls);
