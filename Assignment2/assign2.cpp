@@ -31,6 +31,9 @@ void IFFT(complex<double>* data, int size, complex<double>* fft);
 void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, int shift2, complex<double>* shiftedFFT);
 void retriveWaves(complex<double>* shiftedFFT, int shift1, complex<double>* FirstFFT, int shift2, complex<double>* SecondFFT);
 double rmsError(double* wave1, double* wave2);
+void addNoise(complex<double>* input, complex<double>* output, double noise = 30.0);
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag);
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag);
 
 //Main
 int main(int arcg, char* argv[]){
@@ -88,7 +91,7 @@ int main(int arcg, char* argv[]){
                         shiftAndMerges(DFT1, i, DFT2, j, shiftedFFT);
                         IFFT(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
                         
-                        //Reciever
+                        //Reciever - NOISELESS CHANNEL
                         complex<double>* shiftedFFTreciever = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
                         complex<double>* recievedFirstFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
                         complex<double>* recievedSecondFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
@@ -115,6 +118,31 @@ int main(int arcg, char* argv[]){
                         cout<<"The root mean squared errors are as follows:"<<endl;
                         cout<<"\t\tWave1 = "<<error1<<endl;
                         cout<<"\t\tWave2 = "<<error2<<endl;
+                        
+                        //for NOISY CHANNEL
+                        //Introduce noise
+                        complex<double>* noisy = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+                        addNoise(shiftedIFFT, noisy, 100);
+                        //Recieve
+                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                                recieved[k] = real(noisy[i]);
+                        }
+                        FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+                        retriveWaves(shiftedFFTreciever, i, recievedFirstFFT, j, recievedSecondFFT);
+                        IFFT(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                        IFFT(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                        //collect only the real part
+                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                                recievedFirst[k] = real(recievedFirstCmplx[i]);
+                                recievedSecond[k] = real(recievedSecondCmplx[i]);
+                        }
+                        //compare with real waves
+                        error1 = rmsError(valWave1, recievedFirst);
+                        error2 = rmsError(valWave2, recievedSecond);
+                        cout<<"The root mean squared errors are as follows:"<<endl;
+                        cout<<"\t\tWave1 = "<<error1<<endl;
+                        cout<<"\t\tWave2 = "<<error2<<endl;
+                        
                         
                         free(shiftedFFT);
                         free(shiftedIFFT);
@@ -328,3 +356,114 @@ double rmsError(double* wave1, double* wave2){
         e /= (double)NO_OF_SAMPLING_POINTS;
         return sqrt(e);
 }
+
+void addNoise(complex<double>* input, complex<double>* output, double noise){
+        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                if(rand() %2 == 0){
+                        complex<double> temp((2* noise * (double) rand()/ RAND_MAX - noise), 0.0);
+                        output[i] = input[i] + temp;
+                }
+                else{
+                        output[i] = input[i];
+                }
+        }
+        return;
+}
+
+/*
+void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag) {
+        int i;
+        double xi, yi;
+        FILE* fp;
+
+        if(pflag) fp = fopen("wInterpol.dat", "w");
+
+        gsl_interp_accel *acc = gsl_interp_accel_alloc ();
+        const gsl_interp_type *t = gsl_interp_cspline_periodic;
+        gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING + 1);
+        gsl_spline_init (spline, x, y, FREQUENCY_SAMPLING + 1);
+
+        if(pflag) fprintf (fp, "# Interpolated values\n");
+        for (i = 0; i <= FREQUENCY_INTERPOLATION; i++)
+        {
+                xi = (double) i * x[FREQUENCY_SAMPLING] / FREQUENCY_INTERPOLATION;
+                yi = gsl_spline_eval (spline, xi, acc);
+                if(pflag) fprintf (fp, "%g %g\n", xi, yi);
+                interpolatedX[i] = xi;
+                interpolatedY[i] = yi;
+        }
+
+        gsl_spline_free (spline);
+        gsl_interp_accel_free (acc);
+        if(pflag) fclose(fp);
+}
+
+void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag) {
+        int i, j, flag;
+        FILE *fp;
+        if(pflag) fp = fopen("wQuant.dat", "w");
+
+        double *qw, *t, *lvls, *threshold, k, m;
+        FREQUENCY_SAMPLING = (sampling_frequency * 2 ) / MIN_FREQUENCY + 1;
+        
+        *qy = qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+        *qx = t = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
+        lvls = (double*) malloc(num_lvls * sizeof(double));
+        threshold = (double*) malloc((num_lvls - 1) * sizeof(double));
+
+        for (i = 0; i < num_lvls; ++i)
+        {
+                lvls[i] = (double) i * 2.0 * S / (num_lvls - 1) - S;
+        }
+
+        for (i = 0; i < num_lvls - 1; ++i)
+        {
+                threshold[i] = (lvls[i] + lvls[i + 1]) / 2;
+        }
+
+        m = (double) FREQUENCY_INTERPOLATION / FREQUENCY_SAMPLING;
+        for (k = 0, i = 0; k <= FREQUENCY_INTERPOLATION; k = k + m)
+        {
+                flag = 1;
+                for (j = 0; j < num_lvls - 1; ++j) {
+                        if( y[(int)k] < threshold[j] ) {
+                                qw[i] = lvls[j];
+                                t[i] = x[(int)k];
+                                flag = 0;
+                                break;
+                        }
+                }
+                if(flag) {
+                        qw[i] = lvls[num_lvls - 1];
+                        t[i] = x[(int)k];
+                }
+
+                if(pflag) fprintf (fp, "%g %g\n", t[i], qw[i]);
+                i++;
+        }
+
+        if(t[i-1] < x[FREQUENCY_INTERPOLATION]) {
+                flag = 1;
+                for (j = 0; j < num_lvls - 1; ++j) {
+                        if( y[FREQUENCY_INTERPOLATION] < threshold[j] ) {
+                                qw[FREQUENCY_SAMPLING] = lvls[j];
+                                t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+                                flag = 0;
+                                break;
+                        }
+                }
+                if(flag) {
+                        qw[FREQUENCY_SAMPLING] = lvls[num_lvls - 1];
+                        t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
+                }
+
+                if(pflag) fprintf (fp, "%g %g\n", t[FREQUENCY_SAMPLING], qw[FREQUENCY_SAMPLING]);
+        }
+        else {
+                FREQUENCY_SAMPLING--;
+        }
+
+        free(threshold);
+        free(lvls);
+        if(pflag) fclose(fp);
+}*/
