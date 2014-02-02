@@ -19,6 +19,7 @@
                                                                 //Therefore freq of each bin = (Sampling freq / 2) / (No of bins / 2) = 953.67 Hz
                                                                 //Therefore total frequency in the band = 953.67 * 524288 = 500000000
                                                                 //Total sampling time = 0.000000002*524288 = 0.001048 secs > (1/3500) time period of wave with leasat frequency
+#define BIN_SIZE 953.67
 #define A_MAX 500
 #define PI 3.14159265358979323846
 
@@ -28,6 +29,7 @@ using namespace std;
 void generateWaveform(double* freq, double* amp, double* val, double* time);
 void FFT(double* data, int size, complex<double>* fft);
 void IFFT(complex<double>* data, int size, complex<double>* fft);
+void IFFTwrapper(complex<double>* data, int size, complex<double>* fft);
 void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, int shift2, complex<double>* shiftedFFT);
 void retriveWaves(complex<double>* shiftedFFT, int shift1, complex<double>* FirstFFT, int shift2, complex<double>* SecondFFT);
 double rmsError(double* wave1, double* wave2);
@@ -41,6 +43,8 @@ int main(int arcg, char* argv[]){
         double *ampWave1, *ampWave2, *freqWave1, *freqWave2;
         double *valWave1, *valWave2;
         double *timeWave1, *timeWave2;
+        
+        FILE *fp, *fp1, *fp2, *fp3, *fp4;
 
         complex<double>* DFT1 = (complex<double>*)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
         complex<double>* IDFT1 = (complex<double>*)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
@@ -58,6 +62,8 @@ int main(int arcg, char* argv[]){
 
         timeWave1 = (double *)malloc(NO_OF_SAMPLING_POINTS*sizeof(double));
         timeWave2 = (double *)malloc(NO_OF_SAMPLING_POINTS*sizeof(double));
+        
+        srand(time(NULL));
 
         generateWaveform(freqWave1, ampWave1, valWave1, timeWave1);
         generateWaveform(freqWave2, ampWave2, valWave2, timeWave2);
@@ -66,30 +72,53 @@ int main(int arcg, char* argv[]){
         FFT(valWave1, NO_OF_SAMPLING_POINTS, DFT1);
         cout<<"First FFT done"<<endl;
 
-        IFFT(DFT1, NO_OF_SAMPLING_POINTS, IDFT1);
+        IFFTwrapper(DFT1, NO_OF_SAMPLING_POINTS, IDFT1);
         cout<<"First IFFT done"<<endl;
 
         FFT(valWave2, NO_OF_SAMPLING_POINTS, DFT2);
         cout<<"Second FFT done"<<endl;
 
-        IFFT(DFT2, NO_OF_SAMPLING_POINTS, IDFT2);
+        IFFTwrapper(DFT2, NO_OF_SAMPLING_POINTS, IDFT2);
         cout<<"Second IFFT done"<<endl;
+        
+        fp1 = fopen("wave1.dat", "w");
+        fp2 = fopen("IFFT1.dat", "w");
+        fp3 = fopen("wave2.dat", "w");
+        fp4 = fopen("IFFT2.dat", "w");
+        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                fprintf(fp1, "%g %g\n", timeWave1[i], valWave1[i]);
+                fprintf(fp2, "%g %g\n", timeWave1[i], real(IDFT1[i]));
+                fprintf(fp3, "%g %g\n", timeWave2[i], valWave2[i]);
+                fprintf(fp4, "%g %g\n", timeWave2[i], real(IDFT2[i]));
+        }
+        fclose(fp1);
+        fclose(fp2);
+        fclose(fp3);
+        fclose(fp4);
 
         //for(int i = (NO_OF_SAMPLING_POINTS/10); i<NO_OF_SAMPLING_POINTS; i++){
                 //for(int j = (NO_OF_SAMPLING_POINTS/10); j<NO_OF_SAMPLING_POINTS; j++){
-                        int i, j, shift1, shift2;
+                        int sh1, sh2, shift1, shift2;
                         cout<<"Enter shift for 1st wave in Hz : ";
                         cin>>shift1;
                         cout<<"Enter shift for 2nd wave in Hz : ";
                         cin>>shift2;
-                        i = shift1/953.67;
-                        j = shift2/953.67;
+                        sh1 = shift1/BIN_SIZE;
+                        sh2 = shift2/BIN_SIZE;
+                        
+                        cout<<"Shifted bin values : "<<sh1<<"    "<<sh2<<endl;
                         
                         //Transmitter
                         complex<double>* shiftedFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
                         complex<double>* shiftedIFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        shiftAndMerges(DFT1, i, DFT2, j, shiftedFFT);
-                        IFFT(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
+                        shiftAndMerges(DFT1, sh1, DFT2, sh2, shiftedFFT);
+                        IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
+                        fp = fopen("Shifted.dat", "w");
+                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                                fprintf(fp, "%g, %g\n", timeWave1[i], real(shiftedIFFT[i]));
+                        }
+                        fclose(fp);
+                        
                         
                         //Reciever - NOISELESS CHANNEL
                         complex<double>* shiftedFFTreciever = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
@@ -97,21 +126,28 @@ int main(int arcg, char* argv[]){
                         complex<double>* recievedSecondFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
                         complex<double>* recievedFirstCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
                         complex<double>* recievedSecondCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+                        double* e_recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
                         double* recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
                         double* recievedFirst = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
                         double* recievedSecond = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
                         for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recieved[k] = real(shiftedIFFT[i]);
+                                recieved[k] = real(shiftedIFFT[k]);
                         }
                         FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
-                        retriveWaves(shiftedFFTreciever, i, recievedFirstFFT, j, recievedSecondFFT);
-                        IFFT(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
-                        IFFT(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+                        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
                         //collect only the real part
+                        fp1 = fopen("RecWave1.dat","w");
+                        fp2 = fopen("RecWave2.dat","w");
                         for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recievedFirst[k] = real(recievedFirstCmplx[i]);
-                                recievedSecond[k] = real(recievedSecondCmplx[i]);
+                                recievedFirst[k] = real(recievedFirstCmplx[k]);
+                                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
+                                recievedSecond[k] = real(recievedSecondCmplx[k]);
+                                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
                         }
+                        fclose(fp1);
+                        fclose(fp2);
                         //compare with real waves
                         double error1 = rmsError(valWave1, recievedFirst);
                         double error2 = rmsError(valWave2, recievedSecond);
@@ -125,17 +161,26 @@ int main(int arcg, char* argv[]){
                         addNoise(shiftedIFFT, noisy, 100);
                         //Recieve
                         for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recieved[k] = real(noisy[i]);
+                                e_recieved[k] = real(noisy[k]);
                         }
-                        FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
-                        retriveWaves(shiftedFFTreciever, i, recievedFirstFFT, j, recievedSecondFFT);
-                        IFFT(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
-                        IFFT(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                        /////////////////////////////////////////////////////////
+                        printf("Error: %g\n", rmsError(e_recieved, recieved));
+                        /////////////////////////////////////////////////////////
+                        FFT(e_recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+                        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+                        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
                         //collect only the real part
+                        fp1 = fopen("RecWave1Noisy.dat","w");
+                        fp2 = fopen("RecWave2Noisy.dat","w");
                         for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recievedFirst[k] = real(recievedFirstCmplx[i]);
-                                recievedSecond[k] = real(recievedSecondCmplx[i]);
+                                recievedFirst[k] = real(recievedFirstCmplx[k]);
+                                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
+                                recievedSecond[k] = real(recievedSecondCmplx[k]);
+                                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
                         }
+                        fclose(fp1);
+                        fclose(fp2);
                         //compare with real waves
                         error1 = rmsError(valWave1, recievedFirst);
                         error2 = rmsError(valWave2, recievedSecond);
@@ -179,7 +224,7 @@ void generateWaveform(double* freq, double* amp, double* val, double* time){
         F = (double **)malloc(NO_OF_SINUSOIDS * sizeof(double*));
         
         for (i = 0; i < NO_OF_SINUSOIDS; i++)
-        {       freq[i] = 3.50 + (20.0 - 3.50) * ((double)rand() / (RAND_MAX));
+        {       freq[i] = 3500 + (20000 - 3500) * ((double)rand() / (RAND_MAX));
                 amp[i] = ( A_MAX / NO_OF_SINUSOIDS ) * ((double)rand() / (RAND_MAX));
                 t[i] = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
                 F[i] = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
@@ -268,6 +313,15 @@ void IFFT(complex<double>* data, int size, complex<double>* ifft){
         free(y1);
         free(a0);
         free(a1);
+        return;
+}
+
+void IFFTwrapper(complex<double>* data, int size, complex<double>* ifft){
+        IFFT(data, size, ifft);
+        complex<double> temp((double)size, 0.0);
+        for(int i = 0; i<size; i++){
+                ifft[i] = ifft[i] / temp;
+        }
         return;
 }
 
@@ -362,6 +416,7 @@ void addNoise(complex<double>* input, complex<double>* output, double noise){
                 if(rand() %2 == 0){
                         complex<double> temp((2* noise * (double) rand()/ RAND_MAX - noise), 0.0);
                         output[i] = input[i] + temp;
+                        //cout<< input[i] << " "  << output[i] << endl;
                 }
                 else{
                         output[i] = input[i];
@@ -466,4 +521,21 @@ void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, dou
         free(threshold);
         free(lvls);
         if(pflag) fclose(fp);
+
+
+
+
+
+                        FILE* fp;
+                        fp = fopen("Wave1.dat","w");
+                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                            fprintf(fp, "%g %g\n", timeWave1[i], valWave1[i]);
+                        }
+                        fclose(fp);
+                        fp = fopen("Retrived1.dat", "w");
+                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                            fprintf(fp, "%g %g\n", timeWave1[i], recievedFirst[i]);
+                        }
+                        fclose(fp);
+
 }*/
