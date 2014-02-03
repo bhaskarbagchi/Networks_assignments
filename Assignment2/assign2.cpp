@@ -134,7 +134,7 @@ int main(int arcg, char* argv[]){
         double* recievedFirst = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
         double* recievedSecond = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
         double error1, error2;
-        /*for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
                 recieved[k] = real(shiftedIFFT[k]);
         }
         FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
@@ -190,7 +190,7 @@ int main(int arcg, char* argv[]){
         error2 = rmsError(valWave2, recievedSecond);
         cout<<"The root mean squared errors are as follows:"<<endl;
         cout<<"\t\tWave1 = "<<error1<<endl;
-        cout<<"\t\tWave2 = "<<error2<<endl;*/
+        cout<<"\t\tWave2 = "<<error2<<endl;
         
         //QUANTIZED IN NOISY CHANNEL
         int samp_freq = QUANT_SAMPLING_FREQ;
