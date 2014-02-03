@@ -1,6 +1,7 @@
 /* 
  * Assignment 2
  * FDM with FFT
+ * Compile : g++ assign2.cpp -lgsl -lgslcblas -lm
  */
 
 //Includes
@@ -11,6 +12,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <complex>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_spline.h>
 
 //Definitions
 #define NO_OF_SINUSOIDS 5
@@ -22,6 +25,7 @@
 #define BIN_SIZE 953.67
 #define A_MAX 500
 #define PI 3.14159265358979323846
+#define QUANT_SAMPLING_FREQ 65536
 
 using namespace std;
 
@@ -33,9 +37,10 @@ void IFFTwrapper(complex<double>* data, int size, complex<double>* fft);
 void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, int shift2, complex<double>* shiftedFFT);
 void retriveWaves(complex<double>* shiftedFFT, int shift1, complex<double>* FirstFFT, int shift2, complex<double>* SecondFFT);
 double rmsError(double* wave1, double* wave2);
-void addNoise(complex<double>* input, complex<double>* output, double noise = 30.0);
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag);
-void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag);
+void addNoise(complex<double>* input, complex<double>* output, double size, double noise = 30.0);
+void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_lvls, double sampling_frequency, complex<double>* qx, double* qy);
+void recoverQuantized(complex<double>* noisy_quant, complex<double>* recovered_quant, int a_max, int quant_level, int size);
+void interpolate(complex<double>* recovered_quant, double* quant_time, double freq_sampling, double* interpolated, double* time_interpolate);
 
 //Main
 int main(int arcg, char* argv[]){
@@ -96,111 +101,148 @@ int main(int arcg, char* argv[]){
         fclose(fp3);
         fclose(fp4);
 
-        //for(int i = (NO_OF_SAMPLING_POINTS/10); i<NO_OF_SAMPLING_POINTS; i++){
-                //for(int j = (NO_OF_SAMPLING_POINTS/10); j<NO_OF_SAMPLING_POINTS; j++){
-                        int sh1, sh2, shift1, shift2;
-                        cout<<"Enter shift for 1st wave in Hz : ";
-                        cin>>shift1;
-                        cout<<"Enter shift for 2nd wave in Hz : ";
-                        cin>>shift2;
-                        sh1 = shift1/BIN_SIZE;
-                        sh2 = shift2/BIN_SIZE;
-                        
-                        cout<<"Shifted bin values : "<<sh1<<"    "<<sh2<<endl;
-                        
-                        //Transmitter
-                        complex<double>* shiftedFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        complex<double>* shiftedIFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        shiftAndMerges(DFT1, sh1, DFT2, sh2, shiftedFFT);
-                        IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
-                        fp = fopen("Shifted.dat", "w");
-                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
-                                fprintf(fp, "%g, %g\n", timeWave1[i], real(shiftedIFFT[i]));
-                        }
-                        fclose(fp);
-                        
-                        
-                        //Reciever - NOISELESS CHANNEL
-                        complex<double>* shiftedFFTreciever = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        complex<double>* recievedFirstFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        complex<double>* recievedSecondFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        complex<double>* recievedFirstCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        complex<double>* recievedSecondCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        double* e_recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
-                        double* recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
-                        double* recievedFirst = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
-                        double* recievedSecond = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
-                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recieved[k] = real(shiftedIFFT[k]);
-                        }
-                        FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
-                        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
-                        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
-                        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
-                        //collect only the real part
-                        fp1 = fopen("RecWave1.dat","w");
-                        fp2 = fopen("RecWave2.dat","w");
-                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recievedFirst[k] = real(recievedFirstCmplx[k]);
-                                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
-                                recievedSecond[k] = real(recievedSecondCmplx[k]);
-                                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
-                        }
-                        fclose(fp1);
-                        fclose(fp2);
-                        //compare with real waves
-                        double error1 = rmsError(valWave1, recievedFirst);
-                        double error2 = rmsError(valWave2, recievedSecond);
-                        cout<<"The root mean squared errors are as follows:"<<endl;
-                        cout<<"\t\tWave1 = "<<error1<<endl;
-                        cout<<"\t\tWave2 = "<<error2<<endl;
-                        
-                        //for NOISY CHANNEL
-                        //Introduce noise
-                        complex<double>* noisy = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
-                        addNoise(shiftedIFFT, noisy, 100);
-                        //Recieve
-                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                e_recieved[k] = real(noisy[k]);
-                        }
-                        /////////////////////////////////////////////////////////
-                        printf("Error: %g\n", rmsError(e_recieved, recieved));
-                        /////////////////////////////////////////////////////////
-                        FFT(e_recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
-                        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
-                        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
-                        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
-                        //collect only the real part
-                        fp1 = fopen("RecWave1Noisy.dat","w");
-                        fp2 = fopen("RecWave2Noisy.dat","w");
-                        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                                recievedFirst[k] = real(recievedFirstCmplx[k]);
-                                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
-                                recievedSecond[k] = real(recievedSecondCmplx[k]);
-                                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
-                        }
-                        fclose(fp1);
-                        fclose(fp2);
-                        //compare with real waves
-                        error1 = rmsError(valWave1, recievedFirst);
-                        error2 = rmsError(valWave2, recievedSecond);
-                        cout<<"The root mean squared errors are as follows:"<<endl;
-                        cout<<"\t\tWave1 = "<<error1<<endl;
-                        cout<<"\t\tWave2 = "<<error2<<endl;
-                        
-                        
-                        free(shiftedFFT);
-                        free(shiftedIFFT);
-                        free(shiftedFFTreciever);
-                        free(recievedFirstFFT);
-                        free(recievedSecondFFT);
-                        free(recievedFirstCmplx);
-                        free(recievedSecondCmplx);
-                        free(recieved);
-                        free(recievedFirst);
-                        free(recievedSecond);
-                //}
-        //}
+        int sh1, sh2, shift1, shift2;
+        cout<<"Enter shift for 1st wave in Hz : ";
+        cin>>shift1;
+        cout<<"Enter shift for 2nd wave in Hz : ";
+        cin>>shift2;
+        sh1 = shift1/BIN_SIZE;
+        sh2 = shift2/BIN_SIZE;
+        
+        cout<<"Shifted bin values : "<<sh1<<"    "<<sh2<<endl;
+        
+        //Transmitter
+        complex<double>* shiftedFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        complex<double>* shiftedIFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        shiftAndMerges(DFT1, sh1, DFT2, sh2, shiftedFFT);
+        IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
+        fp = fopen("Shifted.dat", "w");
+        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                fprintf(fp, "%g, %g\n", timeWave1[i], real(shiftedIFFT[i]));
+        }
+        fclose(fp);
+        
+        
+        //Reciever - NOISELESS CHANNEL
+        complex<double>* shiftedFFTreciever = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        complex<double>* recievedFirstFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        complex<double>* recievedSecondFFT = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        complex<double>* recievedFirstCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        complex<double>* recievedSecondCmplx = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        double* e_recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double* recieved = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double* recievedFirst = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double* recievedSecond = (double *)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double error1, error2;
+        /*for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                recieved[k] = real(shiftedIFFT[k]);
+        }
+        FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+        //collect only the real part
+        fp1 = fopen("RecWave1.dat","w");
+        fp2 = fopen("RecWave2.dat","w");
+        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                recievedFirst[k] = real(recievedFirstCmplx[k]);
+                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
+                recievedSecond[k] = real(recievedSecondCmplx[k]);
+                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
+        }
+        fclose(fp1);
+        fclose(fp2);
+        //compare with real waves
+        error1 = rmsError(valWave1, recievedFirst);
+        error2 = rmsError(valWave2, recievedSecond);
+        cout<<"The root mean squared errors are as follows:"<<endl;
+        cout<<"\t\tWave1 = "<<error1<<endl;
+        cout<<"\t\tWave2 = "<<error2<<endl;
+        
+        //for NOISY CHANNEL
+        //Introduce noise
+        complex<double>* noisy = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        addNoise(shiftedIFFT, noisy, NO_OF_SAMPLING_POINTS, 100);
+        //Recieve
+        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                e_recieved[k] = real(noisy[k]);
+        }
+        /////////////////////////////////////////////////////////
+        printf("Error: %g\n", rmsError(e_recieved, recieved));
+        /////////////////////////////////////////////////////////
+        FFT(e_recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+        //collect only the real part
+        fp1 = fopen("RecWave1Noisy.dat","w");
+        fp2 = fopen("RecWave2Noisy.dat","w");
+        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                recievedFirst[k] = real(recievedFirstCmplx[k]);
+                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
+                recievedSecond[k] = real(recievedSecondCmplx[k]);
+                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
+        }
+        fclose(fp1);
+        fclose(fp2);
+        //compare with real waves
+        error1 = rmsError(valWave1, recievedFirst);
+        error2 = rmsError(valWave2, recievedSecond);
+        cout<<"The root mean squared errors are as follows:"<<endl;
+        cout<<"\t\tWave1 = "<<error1<<endl;
+        cout<<"\t\tWave2 = "<<error2<<endl;*/
+        
+        //QUANTIZED IN NOISY CHANNEL
+        int samp_freq = QUANT_SAMPLING_FREQ;
+        int quant_level = 30;
+        cout<<"Sampling Frequency : "<< samp_freq <<endl;
+        cout<<"Quantization Level : "<< quant_level;
+        int size_quant;
+        //size_quant = ;
+        complex<double>* quant_val = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
+        complex<double>* noisy_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
+        complex<double>* recovered_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
+        double* interpolated = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double* time_interpolate = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
+        double* quant_time = (double *)malloc(size_quant * sizeof(double));
+        generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, quant_level, samp_freq, quant_val, quant_time);
+        addNoise(quant_val, noisy_quant, size_quant);
+        
+        recoverQuantized(noisy_quant, recovered_quant, A_MAX, quant_level, size_quant);
+        interpolate(recovered_quant, quant_time, size_quant, interpolated, time_interpolate);
+        
+        FFT(interpolated, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+        retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+        IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+        IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+        //collect only the real part
+        fp1 = fopen("RecWave1Quant.dat","w");
+        fp2 = fopen("RecWave2Quant.dat","w");
+        for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                recievedFirst[k] = real(recievedFirstCmplx[k]);
+                fprintf(fp1, "%g %g\n", timeWave1[k], recievedFirst[k]);
+                recievedSecond[k] = real(recievedSecondCmplx[k]);
+                fprintf(fp2, "%g %g\n", timeWave2[k], recievedSecond[k]);
+        }
+        fclose(fp1);
+        fclose(fp2);
+        //compare with real waves
+        error1 = rmsError(valWave1, recievedFirst);
+        error2 = rmsError(valWave2, recievedSecond);
+        cout<<"The root mean squared errors are as follows:"<<endl;
+        cout<<"\t\tWave1 = "<<error1<<endl;
+        cout<<"\t\tWave2 = "<<error2<<endl;
+        
+        free(shiftedFFT);
+        free(shiftedIFFT);
+        free(shiftedFFTreciever);
+        free(recievedFirstFFT);
+        free(recievedSecondFFT);
+        free(recievedFirstCmplx);
+        free(recievedSecondCmplx);
+        free(recieved);
+        free(recievedFirst);
+        free(recievedSecond);
 
         //free ampWave, freqWave, valWave and timeWave
         free(ampWave1);
@@ -411,8 +453,8 @@ double rmsError(double* wave1, double* wave2){
         return sqrt(e);
 }
 
-void addNoise(complex<double>* input, complex<double>* output, double noise){
-        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+void addNoise(complex<double>* input, complex<double>* output, double size, double noise){
+        for(int i = 0; i<size; i++){
                 if(rand() %2 == 0){
                         complex<double> temp((2* noise * (double) rand()/ RAND_MAX - noise), 0.0);
                         output[i] = input[i] + temp;
@@ -425,117 +467,55 @@ void addNoise(complex<double>* input, complex<double>* output, double noise){
         return;
 }
 
-/*
-void interpolate(double* x, double* y, double* interpolatedX, double* interpolatedY, int pflag) {
-        int i;
-        double xi, yi;
-        FILE* fp;
-
-        if(pflag) fp = fopen("wInterpol.dat", "w");
-
-        gsl_interp_accel *acc = gsl_interp_accel_alloc ();
-        const gsl_interp_type *t = gsl_interp_cspline_periodic;
-        gsl_spline *spline = gsl_spline_alloc (t, FREQUENCY_SAMPLING + 1);
-        gsl_spline_init (spline, x, y, FREQUENCY_SAMPLING + 1);
-
-        if(pflag) fprintf (fp, "# Interpolated values\n");
-        for (i = 0; i <= FREQUENCY_INTERPOLATION; i++)
-        {
-                xi = (double) i * x[FREQUENCY_SAMPLING] / FREQUENCY_INTERPOLATION;
-                yi = gsl_spline_eval (spline, xi, acc);
-                if(pflag) fprintf (fp, "%g %g\n", xi, yi);
-                interpolatedX[i] = xi;
-                interpolatedY[i] = yi;
+void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_lvls, double sampling_frequency, complex<double>* qx, double* qy){
+        double m = NO_OF_SAMPLING_POINTS / sampling_frequency;
+        int level = A_MAX / num_lvls;
+        int thresh = level / 2;
+        int val;
+        double xx, yy;
+        int _xx;
+        for(int i = 0, k = 0; k<NO_OF_SAMPLING_POINTS; k+=m, i++){
+                xx = real(x[k]);
+                _xx = xx;
+                yy = (_xx%level > thresh)? ((_xx / level)* level + level): ((_xx / level)* level);
+                complex<double> temp((double)yy, imag(x[k]));
+                qx[i] = x[k];
+                qy[i] = y[k];
         }
-
-        gsl_spline_free (spline);
-        gsl_interp_accel_free (acc);
-        if(pflag) fclose(fp);
+        return;
 }
 
-void generateQuantizedWaveform(double* x, double* y, double S, int num_lvls, double sampling_frequency, double** qx, double** qy, int pflag) {
-        int i, j, flag;
-        FILE *fp;
-        if(pflag) fp = fopen("wQuant.dat", "w");
+void recoverQuantized(complex<double>* noisy_quant, complex<double>* recovered_quant, int a_max, int quant_level, int size){
+        int level = a_max / quant_level;
+        int thresh = level / 2;
+        int xx, _xx;
+        for(int i = 0; i < size; i++){
+                xx = (int)real(noisy_quant[i]) % level;
+                _xx = (xx>thresh)? (((int)real(noisy_quant[i])/level)*level + level): (((int)real(noisy_quant[i])/level)*level);
+                complex<double> temp((double)_xx, imag(noisy_quant[i]));
+        }
+        return;
+}
 
-        double *qw, *t, *lvls, *threshold, k, m;
-        FREQUENCY_SAMPLING = (sampling_frequency * 2 ) / MIN_FREQUENCY + 1;
+void interpolate(complex<double>* recovered_quant, double* quant_time, double freq_sampling, double* interpolated, double* time_interpolate){
+        double* recieved = (double *)malloc(freq_sampling * sizeof(double));
+        for(int i = 0; i<freq_sampling; i++){
+                recieved[i] = real(recovered_quant[i]);
+        }
+        gsl_interp_accel *acc = gsl_interp_accel_alloc();
+        const gsl_interp_type *t = gsl_interp_cspline_periodic;
+        gsl_spline *spline = gsl_spline_alloc(t, freq_sampling);
+        gsl_spline_init(spline, quant_time, recieved, freq_sampling);
         
-        *qy = qw = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
-        *qx = t = (double*) malloc((FREQUENCY_SAMPLING + 1) * sizeof(double));
-        lvls = (double*) malloc(num_lvls * sizeof(double));
-        threshold = (double*) malloc((num_lvls - 1) * sizeof(double));
-
-        for (i = 0; i < num_lvls; ++i)
-        {
-                lvls[i] = (double) i * 2.0 * S / (num_lvls - 1) - S;
+        double xi, yi;
+        
+        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+                xi = i * SAMPLING_TIME;
+                yi = gsl_spline_eval(spline, xi, acc);
+                time_interpolate[i] = xi;
+                interpolated[i] = yi;
         }
-
-        for (i = 0; i < num_lvls - 1; ++i)
-        {
-                threshold[i] = (lvls[i] + lvls[i + 1]) / 2;
-        }
-
-        m = (double) FREQUENCY_INTERPOLATION / FREQUENCY_SAMPLING;
-        for (k = 0, i = 0; k <= FREQUENCY_INTERPOLATION; k = k + m)
-        {
-                flag = 1;
-                for (j = 0; j < num_lvls - 1; ++j) {
-                        if( y[(int)k] < threshold[j] ) {
-                                qw[i] = lvls[j];
-                                t[i] = x[(int)k];
-                                flag = 0;
-                                break;
-                        }
-                }
-                if(flag) {
-                        qw[i] = lvls[num_lvls - 1];
-                        t[i] = x[(int)k];
-                }
-
-                if(pflag) fprintf (fp, "%g %g\n", t[i], qw[i]);
-                i++;
-        }
-
-        if(t[i-1] < x[FREQUENCY_INTERPOLATION]) {
-                flag = 1;
-                for (j = 0; j < num_lvls - 1; ++j) {
-                        if( y[FREQUENCY_INTERPOLATION] < threshold[j] ) {
-                                qw[FREQUENCY_SAMPLING] = lvls[j];
-                                t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
-                                flag = 0;
-                                break;
-                        }
-                }
-                if(flag) {
-                        qw[FREQUENCY_SAMPLING] = lvls[num_lvls - 1];
-                        t[FREQUENCY_SAMPLING] = x[FREQUENCY_INTERPOLATION];
-                }
-
-                if(pflag) fprintf (fp, "%g %g\n", t[FREQUENCY_SAMPLING], qw[FREQUENCY_SAMPLING]);
-        }
-        else {
-                FREQUENCY_SAMPLING--;
-        }
-
-        free(threshold);
-        free(lvls);
-        if(pflag) fclose(fp);
-
-
-
-
-
-                        FILE* fp;
-                        fp = fopen("Wave1.dat","w");
-                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
-                            fprintf(fp, "%g %g\n", timeWave1[i], valWave1[i]);
-                        }
-                        fclose(fp);
-                        fp = fopen("Retrived1.dat", "w");
-                        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
-                            fprintf(fp, "%g %g\n", timeWave1[i], recievedFirst[i]);
-                        }
-                        fclose(fp);
-
-}*/
+        gsl_spline_free(spline);
+        gsl_interp_accel_free(acc);
+        return;
+}
