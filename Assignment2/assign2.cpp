@@ -17,6 +17,7 @@
 
 //Definitions
 #define NO_OF_SINUSOIDS 5
+#define SAMPLING_FREQUENCY 500000000
 #define NO_OF_SAMPLING_POINTS 524288                            //=No of bins
 #define SAMPLING_TIME 0.000000002                               //(1/500000000)
                                                                 //Therefore freq of each bin = (Sampling freq / 2) / (No of bins / 2) = 953.67 Hz
@@ -25,7 +26,9 @@
 #define BIN_SIZE 953.67
 #define A_MAX 500
 #define PI 3.14159265358979323846
-#define QUANT_SAMPLING_FREQ 65536
+#define QUANT_SAMPLING_POINTS 65536
+#define QUANT_SAMPLING_FREQUENCY 65200000
+#define QUANT_SAMPLING_TIME 0.000000016
 
 using namespace std;
 
@@ -193,18 +196,19 @@ int main(int arcg, char* argv[]){
         cout<<"\t\tWave2 = "<<error2<<endl;
         
         //QUANTIZED IN NOISY CHANNEL
-        int samp_freq = QUANT_SAMPLING_FREQ;
+        int samp_freq = QUANT_SAMPLING_FREQUENCY;
         int quant_level = 30;
-        cout<<"Sampling Frequency : "<< samp_freq <<endl;
-        cout<<"Quantization Level : "<< quant_level;
         int size_quant;
-        //size_quant = ;
+        size_quant = QUANT_SAMPLING_POINTS;
+        cout<<"Sampling Frequency : "<< samp_freq <<endl;
+        cout<<"Quantization Level : "<< quant_level<<endl;
         complex<double>* quant_val = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
         complex<double>* noisy_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
         complex<double>* recovered_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
         double* interpolated = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
         double* time_interpolate = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
         double* quant_time = (double *)malloc(size_quant * sizeof(double));
+        
         generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, quant_level, samp_freq, quant_val, quant_time);
         addNoise(quant_val, noisy_quant, size_quant);
         
@@ -468,19 +472,19 @@ void addNoise(complex<double>* input, complex<double>* output, double size, doub
 }
 
 void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_lvls, double sampling_frequency, complex<double>* qx, double* qy){
-        double m = NO_OF_SAMPLING_POINTS / sampling_frequency;
-        int level = A_MAX / num_lvls;
+        double m = NO_OF_SAMPLING_POINTS / QUANT_SAMPLING_POINTS;
+        int level = S / num_lvls;
         int thresh = level / 2;
         int val;
         double xx, yy;
         int _xx;
-        for(int i = 0, k = 0; k<NO_OF_SAMPLING_POINTS; k+=m, i++){
+        for(int i = 0, k = 0; i<QUANT_SAMPLING_POINTS; k+=m, i++){
                 xx = real(x[k]);
                 _xx = xx;
-                yy = (_xx%level > thresh)? ((_xx / level)* level + level): ((_xx / level)* level);
+                yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
                 complex<double> temp((double)yy, imag(x[k]));
                 qx[i] = x[k];
-                qy[i] = y[k];
+                qy[i] = (double) i * QUANT_SAMPLING_TIME;
         }
         return;
 }
@@ -488,11 +492,13 @@ void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_
 void recoverQuantized(complex<double>* noisy_quant, complex<double>* recovered_quant, int a_max, int quant_level, int size){
         int level = a_max / quant_level;
         int thresh = level / 2;
-        int xx, _xx;
+        int xx, _xx, yy;
         for(int i = 0; i < size; i++){
-                xx = (int)real(noisy_quant[i]) % level;
-                _xx = (xx>thresh)? (((int)real(noisy_quant[i])/level)*level + level): (((int)real(noisy_quant[i])/level)*level);
-                complex<double> temp((double)_xx, imag(noisy_quant[i]));
+                xx = real(noisy_quant[i]);
+                _xx = xx;
+                yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
+                complex<double> temp((double)yy, imag(noisy_quant[i]));
+                recovered_quant[i] = temp;
         }
         return;
 }
@@ -509,7 +515,7 @@ void interpolate(complex<double>* recovered_quant, double* quant_time, double fr
         
         double xi, yi;
         
-        for(int i = 0; i<NO_OF_SAMPLING_POINTS; i++){
+        for(int i = 0; i<(NO_OF_SAMPLING_POINTS-8); i++){
                 xi = i * SAMPLING_TIME;
                 yi = gsl_spline_eval(spline, xi, acc);
                 time_interpolate[i] = xi;
