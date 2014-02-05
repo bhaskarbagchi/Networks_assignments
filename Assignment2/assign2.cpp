@@ -1,7 +1,10 @@
 /* 
+ * The assignment is a C++ code but due to the submission constraints the filename has been given the extension .c
+ * As mentioned in the assignment statement statemt we are allowed to code in cpp.
+ * Before compilation please change the file type to .cpp
+ * Compile using $ g++ assign2.cpp -lgsl -lgslcblas -lm
  * Assignment 2
  * FDM with FFT
- * Compile : g++ assign2.cpp -lgsl -lgslcblas -lm
  */
 
 //Includes
@@ -372,80 +375,53 @@ void IFFTwrapper(complex<double>* data, int size, complex<double>* ifft){
 }
 
 void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, int shift2, complex<double>* shiftedFFT){
-        int min = (shift1 < shift2)? shift1: shift2;
-        int max = (shift1 > shift2)? shift1: shift2;
-        int i = 0, j = 0, k = 0;
-        for(i = 0; i<min; i++){
+        int count, i;
+        
+        complex<double>* shifted1 = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        for(i = 0; i < shift1; i++){
                 complex<double> temp(0.0, 0.0);
-                shiftedFFT[i] = temp;
+                shifted1[i] = temp;
         }
-        if(shift1 < shift2){
-                for(; i<max; i++){
-                        shiftedFFT[i] = DFT1[j];
-                        j++;
-                }
-                for(; i< NO_OF_SAMPLING_POINTS; i++){
-                        shiftedFFT[i] = /*DFT1[j] +*/ DFT2[k];
-                        //j++;
-                        k++;
-                }
-                return;
+        count = 0;
+        for(; i<NO_OF_SAMPLING_POINTS; i++){
+                shifted1[i] = DFT1[count];
+                count++;
         }
-        else{
-                for(; i<max; i++){
-                        shiftedFFT[i] = DFT2[k];
-                        k++;
-                }
-                for(; i< NO_OF_SAMPLING_POINTS; i++){
-                        shiftedFFT[i] = DFT1[j];// + DFT2[k];
-                        j++;// k++;
-                }
-                return;
+        
+        complex<double>* shifted2 = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
+        for(i = 0; i < shift2; i++){
+                complex<double> temp(0.0, 0.0);
+                shifted2[i] = temp;
         }
+        count = 0;
+        for(; i<NO_OF_SAMPLING_POINTS; i++){
+                shifted2[i] = DFT2[count];
+                count++;
+        }
+        
+        for(int i = 0; i < NO_OF_SAMPLING_POINTS; i++){
+                shiftedFFT[i] = shifted1[i] + shifted2[i];
+        }
+        free(shifted1);
+        free(shifted2);
+        return;
 }
 
 void retriveWaves(complex<double>* shiftedFFT, int shift1, complex<double>* FirstFFT, int shift2, complex<double>* SecondFFT){
-        int min = (shift1 < shift2)? shift1: shift2;
-        int max = (shift1 > shift2)? shift1: shift2;
-        int i = 0, j = 0, k = 0;
-        if(shift1<shift2){
-                for(i = shift1; i<shift2; i++){
-                        FirstFFT[j] = shiftedFFT[i];
-                        j++;
-                }
-                for(; i<NO_OF_SAMPLING_POINTS; i++){
-                        SecondFFT[k] = shiftedFFT[i];
-                        k++;
-                }
-                for(; j<NO_OF_SAMPLING_POINTS; j++){
-                        complex<double> temp(0.0, 0.0);
-                        FirstFFT[j] = temp;
-                }
-                for(; k<NO_OF_SAMPLING_POINTS; k++){
-                        complex<double> temp(0.0, 0.0);
-                        SecondFFT[k] = temp;
-                }
-                return;
+        int count1, count2, i;
+        count1 = shift1;
+        count2 = shift2;
+        for(i = 0; i < (20000 / BIN_SIZE) + 1; i++){
+                FirstFFT[i] = shiftedFFT[count1];
+                count1++;
+                SecondFFT[i] = shiftedFFT[count2];
+                count2++;
         }
-        else{
-                for(i = shift2; i<shift1; i++){
-                        SecondFFT[k] = shiftedFFT[i];
-                        k++;
-                }
-                for(; i<NO_OF_SAMPLING_POINTS; i++);{
-                        FirstFFT[j] = shiftedFFT[i];
-                        j++;
-                }
-                for(; j<NO_OF_SAMPLING_POINTS; j++){
-                        complex<double> temp(0.0, 0.0);
-                        FirstFFT[j] = temp;
-                }
-                for(; k<NO_OF_SAMPLING_POINTS; k++){
-                        complex<double> temp(0.0, 0.0);
-                        SecondFFT[k] = temp;
-                }
-                return;
+        for(; i < NO_OF_SAMPLING_POINTS; i++){
+                complex<double> temp(0.0, 0.0);
+                FirstFFT[i] = SecondFFT[i] = temp;
         }
+        return;
 }
 
 double rmsError(double* wave1, double* wave2){
