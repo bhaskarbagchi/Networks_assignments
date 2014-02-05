@@ -1,0 +1,41 @@
+﻿Introduction
+----------------
+When we want to send more than one signal through the same mediun for long distance transmission, the most common method used is that of FDM(Frequency Division Multiplexing). Here if the two signals to be transmitted lie in a particular bandwidth, we shift both the waves to a higher frequency, say that of UHF or VHF and place them in separate bands, and places in non overlapping frequencies. This way both the messages can be transmitted simultaneously through the same medium without interference. This process can be simulated to test whether the process works fine and test the range of frequencies of shifting.
+
+Experimental Setup
+----------------
+
+Transmission End:
+* Two waves are generated, each of which is a combination of 5 sinusoidal waves, in the frequency range of human voice communication range of 3.5 kHz to 20 kHz.
+* Each of the wave is then converted to the frequency domain representation representation performing the Discrete Fourier Transform (DFT), using the recurrsive implementation of FFT. This was done because it is always easy to shift the wave to high frequency range by simply applying a linear shift in the frequency domain.
+* Since the size of each bin in frequency domain is given byu the formula  (Sampling Frequency)/(No of points in the Fourier Transform) and also the implementation of FFT gives the same number of points as output as supplied to it as input, we sampled the user waves at a frequency of 500000000Hz for 0.00104 seconds, i.e. 524288 points. This gave us the complete span of the VHF band in frequency domain.
+* After performing FFT for each of the wave, they were shifted to the VHF range and merged. For shifting, a simple linear shift in the array of FFT values was performed and we merged the two waves by simply adding the corresponding elements in the array. The underlying assumption being that apart from the frequencies containing the wave(energy) the calues elsewhere will be nearly zero(negligible).
+* Now we took the IFFT of this mrged FFT. This gave us a single wave for transmission.
+
+Reciever
+  Part-1
+* Since in this part we had to simulate a noiseless channel, we simply took the FFT of the recieved wave, and retrieved the waves by shifting back to the original waves FFT because we know the amount by which the waves were shifted.
+* After we got 2 FFTs we took the IFFT and got back the original waves.
+* These waves were compared to original waves and RMS errors were printed.
+
+  Part-2
+* In this part we had to simulate a noisy channel, so before transmitting the merged wave we added random noise of 30dB to the analog wave.
+* In the reciever side we took FFT of the recieved wave, and retrieved the waves by shifting back to the original waves FFT because we know the amount by which the waves were shifted.
+* After we got 2 FFTs we took the IFFT and got back the original waves.
+These waves were compared to original waves and RMS errors were printed.
+
+  Part-3
+* In this part we simulated a noisy channel with transmission of quantized waves.
+* For this we quantized the shifted and merged wave into 30 levels and into 65536 sampling points in 1/8th of the original sampling frequency.
+* To this quantized wave random noise of upto 30dB was added and transmitted.
+* In the reciever side, the recieved and quantized back.
+* This quantized wave was interpolated to regenerate the original shifted and merged wave.
+* Once the wave is formed, again the similar process as above is applied, i.e. first FFT is taken, then the waves was shifted back to original positions and IFFT is done to rcover the original waves in time domain. These are compared to the originally generated waves and RMS error is printed.
+
+Key Results:
+----------------
+* FFT is a very efficient way to calculate discrete fourier transform and it can be easily executed in n log n time using the recursice algorithm given in the assignment statement.
+* Calculation of FFT and IFFT is accurate because the IFFT of FFT of a wave is exactly the same as that of the original wave.
+* Qunatized transmission in noisy channel proved to be most erronious in every case as compared to normal transmission in noiseless channel or noisy channel. Apart from noise in the transmission channel, error also creeps in due to the approcimation in the quantizstion process.
+* Experiment with the mean frequency on various shifts we come to a conclusion that we get best results then the two transmitting waves are transmitted to adjacent bands whereas shifting to overlapping bands leads to high increase in the error.
+* The computation of FFT and IFFT can be done using the same function by just changing the sign of the argument for root of unity.
