@@ -19,14 +19,18 @@
 #include <gsl/gsl_spline.h>
 
 //Definitions
+
+//#define TEST_FREQUENCY 1
+//#define TEST_QUANTIZATION 1
+
 #define NO_OF_SINUSOIDS 5
 #define SAMPLING_FREQUENCY 500000000
-#define NO_OF_SAMPLING_POINTS 524288                            //=No of bins
+#define NO_OF_SAMPLING_POINTS (524288/2)                        //=No of bins
 #define SAMPLING_TIME 0.000000002                               //(1/500000000)
                                                                 //Therefore freq of each bin = (Sampling freq / 2) / (No of bins / 2) = 953.67 Hz
                                                                 //Therefore total frequency in the band = 953.67 * 524288 = 500000000
                                                                 //Total sampling time = 0.000000002*524288 = 0.001048 secs > (1/3500) time period of wave with leasat frequency
-#define BIN_SIZE 953.67
+#define BIN_SIZE (2*953.67)
 #define A_MAX 500
 #define PI 3.14159265358979323846
 #define QUANT_SAMPLING_POINTS 65536
@@ -165,6 +169,37 @@ int main(int arcg, char* argv[]){
         cout<<"\t\tWave1 = "<<error1<<endl;
         cout<<"\t\tWave2 = "<<error2<<endl;
         
+#ifdef TEST_FREQUENCY
+        cout<<"Testing .";
+        fp3 = fopen("ErrorVsOverlap1.dat", "w");
+        fp4 = fopen("ErrorVsOverlap2.dat", "w");
+        int shift11, shift22, sh11, sh22;
+        for(int iterate = 0; iterate < 50; iterate++){
+                cout<<" .";
+                shift11 = 150000000;
+                shift22 = shift1 -10000 + iterate * 1000;
+                sh11 = shift11/BIN_SIZE;
+                sh22 = shift22/BIN_SIZE;
+                shiftAndMerges(DFT1, sh11, DFT2, sh22, shiftedFFT);
+                IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
+                FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+                retriveWaves(shiftedFFTreciever, sh11, recievedFirstFFT, sh22, recievedSecondFFT);
+                IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                        recievedFirst[k] = real(recievedFirstCmplx[k]);
+                        recievedSecond[k] = real(recievedSecondCmplx[k]);
+                }
+                error1 = rmsError(valWave1, recievedFirst);
+                error2 = rmsError(valWave2, recievedSecond);
+                fprintf(fp3, "%g %g\n", iterate * 1000.0, error1);
+                fprintf(fp4, "%g %g\n", iterate * 1000.0, error2);
+        }
+        fclose(fp3);
+        fclose(fp4);
+        cout<<endl;
+#endif
+        
         //for NOISY CHANNEL
         //Introduce noise
         complex<double>* noisy = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
@@ -173,9 +208,6 @@ int main(int arcg, char* argv[]){
         for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
                 e_recieved[k] = real(noisy[k]);
         }
-        /////////////////////////////////////////////////////////
-        printf("Error: %g\n", rmsError(e_recieved, recieved));
-        /////////////////////////////////////////////////////////
         FFT(e_recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
         retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
         IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
@@ -217,6 +249,9 @@ int main(int arcg, char* argv[]){
         
         recoverQuantized(noisy_quant, recovered_quant, A_MAX, quant_level, size_quant);
         interpolate(recovered_quant, quant_time, size_quant, interpolated, time_interpolate);
+
+        double tt = rmsError(interpolated, recieved);
+        cout<<" Quantized error "<< tt<< endl;
         
         FFT(interpolated, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
         retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
@@ -240,6 +275,35 @@ int main(int arcg, char* argv[]){
         cout<<"\t\tWave1 = "<<error1<<endl;
         cout<<"\t\tWave2 = "<<error2<<endl;
         
+#ifdef TEST_QUANTIZATION
+        cout<<"Testing quant .";
+        fp3 = fopen("ErrorVsQuant1.dat", "w");
+        fp4 = fopen("ErrorVsQuant2.dat", "w");
+        for(int testt = 0; testt<62; testt+=2){
+                cout<<" .";
+                generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, testt, samp_freq, quant_val, quant_time);
+                addNoise(quant_val, noisy_quant, size_quant);
+                
+                recoverQuantized(noisy_quant, recovered_quant, A_MAX, testt, size_quant);
+                interpolate(recovered_quant, quant_time, size_quant, interpolated, time_interpolate);
+                
+                FFT(interpolated, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+                retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
+                IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                        recievedFirst[k] = real(recievedFirstCmplx[k]);
+                        recievedSecond[k] = real(recievedSecondCmplx[k]);
+                }
+                error1 = rmsError(valWave1, recievedFirst);
+                error2 = rmsError(valWave2, recievedSecond);
+                fprintf(fp3, "%g %g\n", (double)testt, error1);
+                fprintf(fp4, "%g %g\n", (double)testt, error2);
+        }
+        fclose(fp3);
+        fclose(fp4);
+        cout<<endl;
+#endif
         free(shiftedFFT);
         free(shiftedIFFT);
         free(shiftedFFTreciever);
@@ -369,22 +433,24 @@ void IFFTwrapper(complex<double>* data, int size, complex<double>* ifft){
         IFFT(data, size, ifft);
         complex<double> temp((double)size, 0.0);
         for(int i = 0; i<size; i++){
-                ifft[i] = ifft[i] / temp;
+                ifft[i] /= size;
         }
         return;
 }
 
 void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, int shift2, complex<double>* shiftedFFT){
-        int count, i;
+        int count, i, half = NO_OF_SAMPLING_POINTS/2;
         
         complex<double>* shifted1 = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
         for(i = 0; i < shift1; i++){
                 complex<double> temp(0.0, 0.0);
                 shifted1[i] = temp;
+                shifted1[NO_OF_SAMPLING_POINTS -1 - i] = temp;
         }
         count = 0;
-        for(; i<NO_OF_SAMPLING_POINTS; i++){
+        for(; i<half; i++){
                 shifted1[i] = DFT1[count];
+                shifted1[NO_OF_SAMPLING_POINTS - 1 - i] = DFT1[NO_OF_SAMPLING_POINTS - 1 - count];
                 count++;
         }
         
@@ -392,10 +458,12 @@ void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, in
         for(i = 0; i < shift2; i++){
                 complex<double> temp(0.0, 0.0);
                 shifted2[i] = temp;
+                shifted2[NO_OF_SAMPLING_POINTS - 1 - i] = temp;
         }
         count = 0;
-        for(; i<NO_OF_SAMPLING_POINTS; i++){
+        for(; i<half; i++){
                 shifted2[i] = DFT2[count];
+                shifted2[NO_OF_SAMPLING_POINTS - 1 - i] = DFT2[NO_OF_SAMPLING_POINTS - 1 - count];
                 count++;
         }
         
@@ -408,18 +476,21 @@ void shiftAndMerges(complex<double>* DFT1, int shift1, complex<double>* DFT2, in
 }
 
 void retriveWaves(complex<double>* shiftedFFT, int shift1, complex<double>* FirstFFT, int shift2, complex<double>* SecondFFT){
-        int count1, count2, i;
+        int count1, count2, i, half = NO_OF_SAMPLING_POINTS/2;
         count1 = shift1;
         count2 = shift2;
         for(i = 0; i < (20000 / BIN_SIZE) + 1; i++){
                 FirstFFT[i] = shiftedFFT[count1];
+                FirstFFT[NO_OF_SAMPLING_POINTS - 1 - i] = shiftedFFT[NO_OF_SAMPLING_POINTS - 1 - count1];
                 count1++;
                 SecondFFT[i] = shiftedFFT[count2];
+                SecondFFT[NO_OF_SAMPLING_POINTS - 1 - i] = shiftedFFT[NO_OF_SAMPLING_POINTS - 1 - count2];
                 count2++;
         }
-        for(; i < NO_OF_SAMPLING_POINTS; i++){
+        for(; i < half; i++){
                 complex<double> temp(0.0, 0.0);
                 FirstFFT[i] = SecondFFT[i] = temp;
+                FirstFFT[NO_OF_SAMPLING_POINTS - 1 - i] = SecondFFT[NO_OF_SAMPLING_POINTS - 1 - i] = temp;
         }
         return;
 }
@@ -438,7 +509,6 @@ void addNoise(complex<double>* input, complex<double>* output, double size, doub
                 if(rand() %2 == 0){
                         complex<double> temp((2* noise * (double) rand()/ RAND_MAX - noise), 0.0);
                         output[i] = input[i] + temp;
-                        //cout<< input[i] << " "  << output[i] << endl;
                 }
                 else{
                         output[i] = input[i];
@@ -456,11 +526,11 @@ void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_
         int _xx;
         for(int i = 0, k = 0; i<QUANT_SAMPLING_POINTS; k+=m, i++){
                 xx = real(x[k]);
-                _xx = xx;
+                _xx = int(xx);
                 yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
                 complex<double> temp((double)yy, imag(x[k]));
-                qx[i] = x[k];
-                qy[i] = (double) i * QUANT_SAMPLING_TIME;
+                qx[i] = temp;
+                qy[i] = y[k];
         }
         return;
 }
@@ -471,7 +541,7 @@ void recoverQuantized(complex<double>* noisy_quant, complex<double>* recovered_q
         int xx, _xx, yy;
         for(int i = 0; i < size; i++){
                 xx = real(noisy_quant[i]);
-                _xx = xx;
+                _xx = int(xx);
                 yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
                 complex<double> temp((double)yy, imag(noisy_quant[i]));
                 recovered_quant[i] = temp;
