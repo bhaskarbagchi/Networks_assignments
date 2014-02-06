@@ -33,9 +33,9 @@
 #define BIN_SIZE (2*953.67)
 #define A_MAX 500
 #define PI 3.14159265358979323846
-#define QUANT_SAMPLING_POINTS 65536
-#define QUANT_SAMPLING_FREQUENCY 65200000
-#define QUANT_SAMPLING_TIME 0.000000016
+#define QUANT_SAMPLING_POINTS (65536*2)
+#define QUANT_SAMPLING_FREQUENCY (65200000*2)
+#define QUANT_SAMPLING_TIME (0.000000016/2)
 
 using namespace std;
 
@@ -237,14 +237,14 @@ int main(int arcg, char* argv[]){
         size_quant = QUANT_SAMPLING_POINTS;
         cout<<"Sampling Frequency : "<< samp_freq <<endl;
         cout<<"Quantization Level : "<< quant_level<<endl;
-        complex<double>* quant_val = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
-        complex<double>* noisy_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
-        complex<double>* recovered_quant = (complex<double>*)malloc(size_quant * sizeof(complex<double>));
+        complex<double>* quant_val = (complex<double>*)malloc((size_quant ) * sizeof(complex<double>));
+        complex<double>* noisy_quant = (complex<double>*)malloc((size_quant ) * sizeof(complex<double>));
+        complex<double>* recovered_quant = (complex<double>*)malloc((size_quant ) * sizeof(complex<double>));
         double* interpolated = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
         double* time_interpolate = (double*)malloc(NO_OF_SAMPLING_POINTS * sizeof(double));
-        double* quant_time = (double *)malloc(size_quant * sizeof(double));
+        double* quant_time = (double *)malloc((size_quant ) * sizeof(double));
         
-        generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, quant_level, samp_freq, quant_val, quant_time);
+        generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, quant_level, size_quant, quant_val, quant_time);
         addNoise(quant_val, noisy_quant, size_quant);
         
         recoverQuantized(noisy_quant, recovered_quant, A_MAX, quant_level, size_quant);
@@ -279,13 +279,23 @@ int main(int arcg, char* argv[]){
         cout<<"Testing quant .";
         fp3 = fopen("ErrorVsQuant1.dat", "w");
         fp4 = fopen("ErrorVsQuant2.dat", "w");
-        for(int testt = 0; testt<62; testt+=2){
+        int new_size = 524288/2;
+        for(int testt = 0; testt<15; testt++){
                 cout<<" .";
-                generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, testt, samp_freq, quant_val, quant_time);
-                addNoise(quant_val, noisy_quant, size_quant);
+                new_size/=2;
+                //decide sampling frequency and array size accordingly
+                //malloc quant_val_test and quant_time_test
                 
-                recoverQuantized(noisy_quant, recovered_quant, A_MAX, testt, size_quant);
-                interpolate(recovered_quant, quant_time, size_quant, interpolated, time_interpolate);
+                complex<double>* quant_val_test = (complex<double> *)malloc((new_size) * sizeof(complex<double>));
+                double* quant_time_test = (double *)malloc((new_size) * sizeof(double));
+                complex<double>* noisy_quant_test = (complex<double> *)malloc((new_size) * sizeof(complex<double>));
+                complex<double>* recovered_quant_test = (complex<double> *)malloc((new_size) * sizeof(complex<double>));
+
+                generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, 30, new_size, quant_val_test, quant_time_test);
+                addNoise(quant_val_test, noisy_quant_test, new_size);
+                
+                recoverQuantized(noisy_quant_test, recovered_quant_test, A_MAX, 30, new_size);
+                interpolate(recovered_quant_test, quant_time_test, new_size, interpolated, time_interpolate);
                 
                 FFT(interpolated, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
                 retriveWaves(shiftedFFTreciever, sh1, recievedFirstFFT, sh2, recievedSecondFFT);
@@ -297,8 +307,12 @@ int main(int arcg, char* argv[]){
                 }
                 error1 = rmsError(valWave1, recievedFirst);
                 error2 = rmsError(valWave2, recievedSecond);
-                fprintf(fp3, "%g %g\n", (double)testt, error1);
-                fprintf(fp4, "%g %g\n", (double)testt, error2);
+                fprintf(fp3, "%g %g\n", (double)SAMPLING_FREQUENCY / pow(2, testt+1), error1);
+                fprintf(fp4, "%g %g\n", (double)SAMPLING_FREQUENCY / pow(2, testt+1), error2);
+                free(quant_val_test);
+                free(quant_time_test);
+                free(noisy_quant_test);
+                free(recovered_quant_test);
         }
         fclose(fp3);
         fclose(fp4);
@@ -517,32 +531,33 @@ void addNoise(complex<double>* input, complex<double>* output, double size, doub
         return;
 }
 
-void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_lvls, double sampling_frequency, complex<double>* qx, double* qy){
-        double m = NO_OF_SAMPLING_POINTS / QUANT_SAMPLING_POINTS;
-        int level = S / num_lvls;
-        int thresh = level / 2;
-        int val;
+void generateQuantizedWaveform(complex<double>* x, double* y, double S, int num_lvls, double size, complex<double>* qx, double* qy){
+        double m = NO_OF_SAMPLING_POINTS / size;
+        double level = S / num_lvls;
+        double thresh = level / 2;
         double xx, yy;
-        int _xx;
-        for(int i = 0, k = 0; i<QUANT_SAMPLING_POINTS; k+=m, i++){
+        int _xx, i, k;
+        for(i = 0, k = 0; i<size; k+=m, i++){
                 xx = real(x[k]);
                 _xx = int(xx);
-                yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
+                yy = (_xx%((int)level) > thresh)? (_xx - (_xx%((int)level)) + (int) level): (_xx - (_xx%((int)level)));
                 complex<double> temp((double)yy, imag(x[k]));
                 qx[i] = temp;
                 qy[i] = y[k];
         }
+        complex<double> temp(0.0, 0.0);
         return;
 }
 
 void recoverQuantized(complex<double>* noisy_quant, complex<double>* recovered_quant, int a_max, int quant_level, int size){
-        int level = a_max / quant_level;
-        int thresh = level / 2;
-        int xx, _xx, yy;
+        double level = a_max / quant_level;
+        double thresh = level / 2;
+        double xx, yy; 
+        int _xx;
         for(int i = 0; i < size; i++){
                 xx = real(noisy_quant[i]);
                 _xx = int(xx);
-                yy = (_xx%level > thresh)? (_xx - (_xx % level) + level): (_xx - (_xx % level));
+                yy = (_xx%((int)level) > thresh)? (_xx - (_xx%((int)level)) + (int) level): (_xx - (_xx%((int)level)));
                 complex<double> temp((double)yy, imag(noisy_quant[i]));
                 recovered_quant[i] = temp;
         }
@@ -560,12 +575,12 @@ void interpolate(complex<double>* recovered_quant, double* quant_time, double fr
         gsl_spline_init(spline, quant_time, recieved, freq_sampling);
         
         double xi, yi;
-        
-        for(int i = 0; i<(NO_OF_SAMPLING_POINTS-8); i++){
-                xi = i * SAMPLING_TIME;
+        xi = 0;
+        for(int i = 0; i < (NO_OF_SAMPLING_POINTS) && xi < quant_time[(int)freq_sampling - 1]; i++){
                 yi = gsl_spline_eval(spline, xi, acc);
                 time_interpolate[i] = xi;
                 interpolated[i] = yi;
+                xi = (i+1) * SAMPLING_TIME;
         }
         gsl_spline_free(spline);
         gsl_interp_accel_free(acc);
