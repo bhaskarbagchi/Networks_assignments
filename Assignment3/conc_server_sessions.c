@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,7 +62,7 @@ int main(int arcg, char* argv[]){
 	
 	pthread_t thread[NO_SESSIONS];
 	pthread_t *create;
-	/*for(count = 0; count<NO_SESSIONS; count++){
+	for(count = 0; count<NO_SESSIONS; count++){
 		rc = pthread_create(&thread[count], NULL, handleSession, (void *)count);
 		if(rc){
 			printf("Error in thread creation.\n");
@@ -74,7 +75,7 @@ int main(int arcg, char* argv[]){
 	if(rc){
 		printf("Error in creating command thread.\n");
 		exit(0);
-	}*/
+	}
 	
 	//Create server
 	int sock_fd, new_sock_fd;
@@ -124,7 +125,7 @@ void *handover(void* args){
 	temp = (client_list_node *)malloc(sizeof(client_list_node));
 	temp->client_fd = new_sock_fd;
 	temp->next = NULL;
-	
+	bzero(buff, LENGTH);
 	//Pass session information to the client
 	strcpy(buff, "---MENU---\n");
 	send(new_sock_fd, buff, strlen(buff), 0);
@@ -132,10 +133,11 @@ void *handover(void* args){
 	memset(buff, '\0', sizeof(buff));
 	
 	//Recieve request from user
-	int check = 0;
-	while(check == 0){
-		check = recv(new_sock_fd, buff, LENGTH, 0);
-	}
+	//int check = 0;
+	//while(check == 0){
+		//check = recv(new_sock_fd, buff, LENGTH, 0);
+		recv(new_sock_fd, buff, LENGTH, 0);
+	//}
 	session = atoi(buff) - 1;
 	printf("Requested session = %d\n", session+1);
 	
@@ -179,39 +181,44 @@ void *handover(void* args){
 	}
 	printf("File to be transfered is %s\n", fname);
 	
-	char sendBuff[1025];
+	char sendBuff[LENGTH];
 	FILE* fp = fopen(fname, "r");
 	if(fp == NULL){
 		printf("Error in fopen.\n");
 		exit(0);
 	}
-	memset(sendBuff, '0', sizeof(sendBuff)); 
+	memset(sendBuff, '\0', sizeof(sendBuff)); 
 	int n = 0;
+	strcpy(sendBuff, "Ready");
+	send(new_sock_fd, sendBuff, strlen(sendBuff), 0);
+	memset(sendBuff, '\0', sizeof(sendBuff));
 	printf("File transfer start!\n");
+	
 	while((n= fread(sendBuff, sizeof(char), LENGTH, fp))>0){
 		if(send(new_sock_fd, sendBuff, n, 0)<0){
-			printf("Error in sending file.\n");
+			printf("Error in sending file.%d \n", errno);
 			exit(0);
 		}
-		bzero(sendBuff, LENGTH);
+		memset(sendBuff, '\0', sizeof(sendBuff));
+		recv(new_sock_fd, sendBuff, LENGTH, 0);
+		//printf("%s\n", sendBuff);
+		memset(sendBuff, '\0', sizeof(sendBuff));
 	}
-	strcpy(sendBuff, "Sent");
-	send(new_sock_fd, sendBuff, sizeof(char)*strlen("Sent"), 0);
-	fclose(fp);
-	printf("File transfer complete!\n");
 	
 	strcpy(sendBuff, "Sent");
-	send(new_sock_fd, sendBuff, sizeof(sendBuff), 0);
+	send(new_sock_fd, sendBuff, strlen(sendBuff), 0);
+	fclose(fp);
+	printf("File transfer complete!\n");
 	
 	memset(buff, '0', sizeof(buff));
 	printf("Waiting for confirmation.\n");
 	recv(new_sock_fd, buff, LENGTH, 0);
-	if(strcmp(buff, "Recieved!!!") == 0)
+	//if(strcmp(buff, "Recieved!!!") == 0)
 		printf("%s\nRecieved confirmation\n", buff);
-	else{
-		printf("Couldn't complete file transfer!!\n");
-		exit(0);
-	}
+	//else{
+	//	printf("Couldn't complete file transfer!!\n");
+	//	exit(0);
+	//}
 	//Insert the incomming connection in the proper list
 	pthread_mutex_lock(&list_mutex[session]);
 	if(list[session].head == NULL && list[session].tail == NULL){
@@ -526,6 +533,7 @@ void *command_interpreter(void* args){
 	while(1){
 		printf("Enter session no. to be modified: ");
 		scanf("%d", &session);
+		session--;
 		printf("What to modify?\n\t1. Height\n\t2. Width\n\t3. Zoom\n\t4.Page\nEnter choice");
 		scanf("%d", &choice);
 		switch(choice){
