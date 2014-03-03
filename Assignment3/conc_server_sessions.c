@@ -61,7 +61,7 @@ int main(int arcg, char* argv[]){
 	
 	pthread_t thread[NO_SESSIONS];
 	pthread_t *create;
-	for(count = 0; count<NO_SESSIONS; count++){
+	/*for(count = 0; count<NO_SESSIONS; count++){
 		rc = pthread_create(&thread[count], NULL, handleSession, (void *)count);
 		if(rc){
 			printf("Error in thread creation.\n");
@@ -74,7 +74,7 @@ int main(int arcg, char* argv[]){
 	if(rc){
 		printf("Error in creating command thread.\n");
 		exit(0);
-	}
+	}*/
 	
 	//Create server
 	int sock_fd, new_sock_fd;
