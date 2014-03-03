@@ -169,37 +169,6 @@ int main(int arcg, char* argv[]){
         cout<<"\t\tWave1 = "<<error1<<endl;
         cout<<"\t\tWave2 = "<<error2<<endl;
         
-#ifdef TEST_FREQUENCY
-        cout<<"Testing .";
-        fp3 = fopen("ErrorVsOverlap1.dat", "w");
-        fp4 = fopen("ErrorVsOverlap2.dat", "w");
-        int shift11, shift22, sh11, sh22;
-        for(int iterate = 0; iterate < 50; iterate++){
-                cout<<" .";
-                shift11 = 150000000;
-                shift22 = shift1 -10000 + iterate * 1000;
-                sh11 = shift11/BIN_SIZE;
-                sh22 = shift22/BIN_SIZE;
-                shiftAndMerges(DFT1, sh11, DFT2, sh22, shiftedFFT);
-                IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
-                FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
-                retriveWaves(shiftedFFTreciever, sh11, recievedFirstFFT, sh22, recievedSecondFFT);
-                IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
-                IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
-                for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
-                        recievedFirst[k] = real(recievedFirstCmplx[k]);
-                        recievedSecond[k] = real(recievedSecondCmplx[k]);
-                }
-                error1 = rmsError(valWave1, recievedFirst);
-                error2 = rmsError(valWave2, recievedSecond);
-                fprintf(fp3, "%g %g\n", iterate * 1000.0, error1);
-                fprintf(fp4, "%g %g\n", iterate * 1000.0, error2);
-        }
-        fclose(fp3);
-        fclose(fp4);
-        cout<<endl;
-#endif
-        
         //for NOISY CHANNEL
         //Introduce noise
         complex<double>* noisy = (complex<double> *)malloc(NO_OF_SAMPLING_POINTS * sizeof(complex<double>));
@@ -274,15 +243,15 @@ int main(int arcg, char* argv[]){
         cout<<"The root mean squared errors are as follows:"<<endl;
         cout<<"\t\tWave1 = "<<error1<<endl;
         cout<<"\t\tWave2 = "<<error2<<endl;
-        
+
 #ifdef TEST_QUANTIZATION
         cout<<"Testing quant .";
         fp3 = fopen("ErrorVsQuant1.dat", "w");
         fp4 = fopen("ErrorVsQuant2.dat", "w");
-        int new_size = 524288/2;
-        for(int testt = 0; testt<15; testt++){
+        int new_size = 524288/4;
+        for(int testt = 0; testt<50; testt++){
                 cout<<" .";
-                new_size/=2;
+                //new_size/=2;
                 //decide sampling frequency and array size accordingly
                 //malloc quant_val_test and quant_time_test
                 
@@ -291,10 +260,10 @@ int main(int arcg, char* argv[]){
                 complex<double>* noisy_quant_test = (complex<double> *)malloc((new_size) * sizeof(complex<double>));
                 complex<double>* recovered_quant_test = (complex<double> *)malloc((new_size) * sizeof(complex<double>));
 
-                generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, 30, new_size, quant_val_test, quant_time_test);
+                generateQuantizedWaveform(shiftedIFFT, timeWave1, A_MAX, 2*testt + 2, new_size, quant_val_test, quant_time_test);
                 addNoise(quant_val_test, noisy_quant_test, new_size);
                 
-                recoverQuantized(noisy_quant_test, recovered_quant_test, A_MAX, 30, new_size);
+                recoverQuantized(noisy_quant_test, recovered_quant_test, A_MAX, 2*testt + 2, new_size);
                 interpolate(recovered_quant_test, quant_time_test, new_size, interpolated, time_interpolate);
                 
                 FFT(interpolated, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
@@ -307,8 +276,8 @@ int main(int arcg, char* argv[]){
                 }
                 error1 = rmsError(valWave1, recievedFirst);
                 error2 = rmsError(valWave2, recievedSecond);
-                fprintf(fp3, "%g %g\n", (double)SAMPLING_FREQUENCY / pow(2, testt+1), error1);
-                fprintf(fp4, "%g %g\n", (double)SAMPLING_FREQUENCY / pow(2, testt+1), error2);
+                fprintf(fp3, "%g %g\n", (double)2*testt + 2, error1);
+                fprintf(fp4, "%g %g\n", (double)2*testt + 2, error2);
                 free(quant_val_test);
                 free(quant_time_test);
                 free(noisy_quant_test);
@@ -318,6 +287,42 @@ int main(int arcg, char* argv[]){
         fclose(fp4);
         cout<<endl;
 #endif
+
+        
+
+#ifdef TEST_FREQUENCY
+        cout<<"Testing .";
+        fp3 = fopen("ErrorVsOverlap1.dat", "w");
+        fp4 = fopen("ErrorVsOverlap2.dat", "w");
+        int shift11, shift22, sh11, sh22;
+        for(int iterate = 0; iterate < 50; iterate++){
+                cout<<" .";
+                shift11 = 150000000;
+                shift22 = shift1 -10000 + iterate * 1000;
+                sh11 = shift11/BIN_SIZE;
+                sh22 = shift22/BIN_SIZE;
+                shiftAndMerges(DFT1, sh11, DFT2, sh22, shiftedFFT);
+                IFFTwrapper(shiftedFFT, NO_OF_SAMPLING_POINTS, shiftedIFFT);
+                FFT(recieved, NO_OF_SAMPLING_POINTS, shiftedFFTreciever);
+                retriveWaves(shiftedFFTreciever, sh11, recievedFirstFFT, sh22, recievedSecondFFT);
+                IFFTwrapper(recievedFirstFFT, NO_OF_SAMPLING_POINTS, recievedFirstCmplx);
+                IFFTwrapper(recievedSecondFFT, NO_OF_SAMPLING_POINTS, recievedSecondCmplx);
+                for(int k = 0; k<NO_OF_SAMPLING_POINTS; k++){
+                        recievedFirst[k] = real(recievedFirstCmplx[k]);
+                        recievedSecond[k] = real(recievedSecondCmplx[k]);
+                }
+                error1 = rmsError(valWave1, recievedFirst);
+                error2 = rmsError(valWave2, recievedSecond);
+                fprintf(fp3, "%g %g\n", iterate * 1000.0, error1);
+                fprintf(fp4, "%g %g\n", iterate * 1000.0, error2);
+        }
+        fclose(fp3);
+        fclose(fp4);
+        cout<<endl;
+#endif
+
+
+
         free(shiftedFFT);
         free(shiftedIFFT);
         free(shiftedFFTreciever);

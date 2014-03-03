@@ -18,7 +18,7 @@ void recievePDF(int sockfd);
 //Main funstion
 int main(int argc, char* argv[]){
 	int sockfd = 0, n = 0;
-	char buff[1025];
+	char buff[LENGTH];
 	memset(buff, '0', sizeof(buff));
 	struct sockaddr_in serv_addr;
 	
@@ -41,10 +41,12 @@ int main(int argc, char* argv[]){
 		return 1;
 	}
 	
+	printf("Connected!!\n");
+
 	int choice;
 	choice = recieveMenu(sockfd);
 	sprintf(buff, "%d", choice);
-	send(sockfd, buff, strlen(buff) + 1, 0);
+	send(sockfd, buff, strlen(buff), 0);
 	
 	recievePDF(sockfd);
 	
@@ -67,53 +69,52 @@ int main(int argc, char* argv[]){
 	 */
 	char command[100];
 	while(1){
-		recv(sockfd, buff, LENGTH, 0);
-		int width = atoi(buff);
-		strcpy(buff, "Recieved!!");
-		send(sockfd, buff, sizeof(buff), 0);
-		recv(sockfd, buff, LENGTH, 0);
-		int height = atoi(buff);
-		strcpy(buff, "Recieved!!");
-		send(sockfd, buff, sizeof(buff), 0);
-		recv(sockfd, buff, LENGTH, 0);
-		int zoom = atoi(buff);
-		strcpy(buff, "Recieved!!");
-		send(sockfd, buff, sizeof(buff), 0);
-		recv(sockfd, buff, LENGTH, 0);
-		int page = atoi(buff);
-		strcpy(buff, "Recieved!!");
-		send(sockfd, buff, sizeof(buff), 0);
+	 	recv(sockfd, buff, LENGTH, 0);
+	 	int width = atoi(buff);
+	 	strcpy(buff, "Recieved!!");
+	 	send(sockfd, buff, sizeof(buff), 0);
+	 	recv(sockfd, buff, LENGTH, 0);
+	 	int height = atoi(buff);
+	 	strcpy(buff, "Recieved!!");
+	 	send(sockfd, buff, sizeof(buff), 0);
+	 	recv(sockfd, buff, LENGTH, 0);
+	 	int zoom = atoi(buff);
+	 	strcpy(buff, "Recieved!!");
+	 	send(sockfd, buff, sizeof(buff), 0);
+	 	recv(sockfd, buff, LENGTH, 0);
+	 	int page = atoi(buff);
+	 	strcpy(buff, "Recieved!!");
+	 	send(sockfd, buff, sizeof(buff), 0);
+		 	char zoom_str[100];
+	 	memset(zoom_str, '\0', sizeof(zoom_str));
+	 	char page_str[100];
+	 	memset(page_str, '\0', sizeof(page_str));
+	 	char temp[100];
+	 	memset(temp ,'\0', sizeof(temp));
+	 	while(zoom>0){
+	 		int a = zoom%10;
+	 		sprintf(temp,"%d %s", a, zoom_str);
+	 		strcpy(zoom_str, temp);
+	 		zoom/=10;
+	 		memset(temp ,'\0', sizeof(temp));
+	 	}
+	 	memset(temp ,'\0', sizeof(temp));
+	 	while(page>0){
+	 		int a = page%10;
+	 		sprintf(temp,"%d %s", a, page_str);
+	 		strcpy(page_str, temp);
+	 		page/=10;
+	 		memset(temp ,'\0', sizeof(temp));
+	 	}
 		
-		char zoom_str[100];
-		memset(zoom_str, '\0', sizeof(zoom_str));
-		char page_str[100];
-		memset(page_str, '\0', sizeof(page_str));
-		char temp[100];
-		memset(temp ,'\0', sizeof(temp));
-		while(zoom>0){
-			int a = zoom%10;
-			sprintf(temp,"%d %s", a, zoom_str);
-			strcpy(zoom_str, temp);
-			zoom/=10;
-			memset(temp ,'\0', sizeof(temp));
-		}
-		memset(temp ,'\0', sizeof(temp));
-		while(page>0){
-			int a = page%10;
-			sprintf(temp,"%d %s", a, page_str);
-			strcpy(page_str, temp);
-			page/=10;
-			memset(temp ,'\0', sizeof(temp));
-		}
-		
-		sprintf(command, "xdotool search --onlyvisible --name okular windowactivate");
-		system(command);
-		sprintf(command, "xdotool getactivewindow windowsize %d %d", height, width);
-		system(command);
-		sprintf(command, "xdotool key --delay 250 ctrl+f Escape ctrl+f Tab Tab Tab Tab Tab %s Return Escape", zoom_str);
-		system(command);
-		sprintf(command, "xdotool key --delay 250 ctrl+g %s Return", page_str);
-		system(command);
+	 	sprintf(command, "xdotool search --onlyvisible --name okular windowactivate");
+	 	system(command);
+	 	sprintf(command, "xdotool getactivewindow windowsize %d %d", height, width);
+	 	system(command);
+	 	sprintf(command, "xdotool key --delay 250 ctrl+f Escape ctrl+f Tab Tab Tab Tab Tab %s Return Escape", zoom_str);
+	 	system(command);
+	 	sprintf(command, "xdotool key --delay 250 ctrl+g %s Return", page_str);
+	 	system(command);
 	}
 	close(sockfd);
 	return 0;
@@ -121,12 +122,11 @@ int main(int argc, char* argv[]){
 
 int recieveMenu(int sockfd){
 	char buff[LENGTH];
-	memset(buff, '0', sizeof(buff));
+	memset(buff, '\0', sizeof(buff));
 	int choice;
 	int size = recv(sockfd, buff, LENGTH, 0);
-	buff[size] = '\0';
 	printf("%s", buff);
-	memset(buff, '0', sizeof(buff));
+	memset(buff, '\0', sizeof(buff));
 	printf("Select a session to join:");
 	scanf("%d", &choice);
 	return choice;
@@ -142,11 +142,17 @@ void recievePDF(int sockfd){
 		exit(0);
 	}
 	else{
+		recv(sockfd, buff, LENGTH, 0);
+		printf("%s\n", buff);		
 		bzero(buff, LENGTH);
 		int f_block_sz = 0;
 		int success = 0;
 		while(success == 0){
 			while(f_block_sz = recv(sockfd, buff, LENGTH, 0)){
+				//printf("%s\n", buff);
+				if(strcmp(buff, "Sent") == 0)// || f_block_sz<LENGTH)
+					break;
+								
 				if(f_block_sz < 0)
 				{
 					printf("Receive file error.\n");
@@ -155,7 +161,7 @@ void recievePDF(int sockfd){
 				if(f_block_sz == 0)
 					break;
 				buff[f_block_sz] = '\0';
-				if(strcmp(buff, "Sent") == 0 || f_block_sz<LENGTH)
+				if(strcmp(buff, "Sent") == 0)// || f_block_sz<LENGTH)
 					break;
 				
 				int write_sz = fwrite(buff, sizeof(char), f_block_sz, fp);
@@ -164,6 +170,9 @@ void recievePDF(int sockfd){
 					printf("File write failed.\n");
 					exit(0);
 				}
+				memset(buff, '\0', sizeof(buff));
+				strcpy(buff, "more");
+				send(sockfd, buff, strlen(buff), 0);
 				bzero(buff, LENGTH);
 			}
 			success = 1;
@@ -171,7 +180,7 @@ void recievePDF(int sockfd){
 			printf("File Recieve Complete!\n");
 		}
 		strcpy(buff, "Recieved!!!");
-		send(sockfd, buff, sizeof(buff), 0);
+		send(sockfd, buff, strlen(buff), 0);
 	}
 	return;
 }
