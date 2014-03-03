@@ -1,0 +1,15 @@
+wid=`xdotool search --onlyvisible --name "receive.pdf"`
+eval `xdotool getwindowgeometry --shell $wid`
+echo $X $Y>>position.txt
+#echo $height $width >>size.txt
+#  xdotool windowmove $wid $X $Y
+#  xdotool windowraise $wid
+#  xdotool getactivewindow windowmove 100 100
+  wname=`xdotool getwindowname $wid`
+  if [ -n "$wname" ]; then
+    echo $wid --- $wname
+  fi
+
+
+#page-->ctrl+g
+#zoom-->f5 --> 6*tab
