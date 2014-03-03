@@ -39,3 +39,7 @@ Key Results:
 * Qunatized transmission in noisy channel proved to be most erronious in every case as compared to normal transmission in noiseless channel or noisy channel. Apart from noise in the transmission channel, error also creeps in due to the approcimation in the quantizstion process.
 * Experiment with the mean frequency on various shifts we come to a conclusion that we get best results then the two transmitting waves are transmitted to adjacent bands whereas shifting to overlapping bands leads to high increase in the error.
 * The computation of FFT and IFFT can be done using the same function by just changing the sign of the argument for root of unity.
+
+Routine Optimization
+----------------
+* Optimized routines: The only routine that can be improved is the FFT> It runs in nlogn time but here the base is 2. Here we can make it log base of 4 by dividing the array i 4 parts instead of 2 in the FFT/IFFT routine.
