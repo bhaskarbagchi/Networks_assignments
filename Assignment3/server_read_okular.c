@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 int main(int argc, char* argv[]){
-	char * position = NULL;
+	/*char * position = NULL;
 	char * size = NULL;
 	char * zoom = NULL;
 	char * page = NULL;
@@ -36,6 +36,16 @@ int main(int argc, char* argv[]){
 		fclose(fp);
 		sprintf(msg, "%s %s %s %s\n", position, size, page, zoom);
 		printf("%s", msg);
-	//}
+	//}*/
+	
+	char command[100];
+	sprintf(command, "xdotool search --onlyvisible --name okular windowactivate");
+	system(command);
+	sprintf(command, "xdotool getactivewindow windowsize 600 800");
+	system(command);
+	sprintf(command, "xdotool key --delay 250 ctrl+f Escape ctrl+f Tab Tab Tab Tab Tab 1 5 0 Return Escape");
+	system(command);
+	sprintf(command, "xdotool key --delay 250 ctrl+g 1 2 Return");
+	system(command);
 	return 0;
 }
