@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #define LENGTH 1024
+#define NO_SESSIONS 4
 
 //Datatype to store linked list of all clients
 typedef struct _client_list_node{
@@ -21,37 +22,59 @@ typedef struct _client_list{
 	client_list_node* tail;
 }client_list;
 
+//Structure to store different session informations
+typedef struct _session_info{
+	char filename[100];
+	int height, width, zoom, page;
+} session_info;
+
 //Client list for each session
-client_list list[10];
+client_list list[NO_SESSIONS];
+
+//Session info for each session
+session_info sessions[NO_SESSIONS];
 
 //Mutex for each individual session client list
-pthread_mutex_t list_mutex[10];
+pthread_mutex_t list_mutex[NO_SESSIONS];
+
+//Mutex for each individual session info
+pthread_mutex_t info_mutex[NO_SESSIONS];
 
 
 //Function prototypes
 void *handover(void* args);
 void *handleSession(void* args);
+void *command_interpreter(void* args);
+
 
 //Main function begins
 int main(int arcg, char* argv[]){
 	int count = 0, rc;
 
 	//Create sessions: create threads
-	for(count = 0; count<10; count++){
+	for(count = 0; count<NO_SESSIONS; count++){
 		pthread_mutex_init(&list_mutex[count], NULL);
-			list[count].head = NULL;
-			list[count].tail = NULL;
+		pthread_mutex_init(&info_mutex[count], NULL);
+		list[count].head = NULL;
+		list[count].tail = NULL;
 	}
 	
-	pthread_t thread[10];
+	pthread_t thread[NO_SESSIONS];
 	pthread_t *create;
-	/*for(count = 0; count<10; count++){
-		rc = pthread_create(&thread1[count], NULL, handleSession, (void *)count);
+	for(count = 0; count<NO_SESSIONS; count++){
+		rc = pthread_create(&thread[count], NULL, handleSession, (void *)count);
 		if(rc){
 			printf("Error in thread creation.\n");
 			exit(0);
 		}
-	}*/
+	}
+	
+	pthread_t command_inter;
+	rc = pthread_create(&command_inter, NULL, command_interpreter, NULL);
+	if(rc){
+		printf("Error in creating command thread.\n");
+		exit(0);
+	}
 	
 	//Create server
 	int sock_fd, new_sock_fd;
@@ -259,7 +282,7 @@ void *handleSession(void* args){
 					break;
 		}
 	}
-	
+	/*
 	char *arg[3];
 	arg[0] = "okular";
 	strcpy(arg[1], filename);
@@ -267,7 +290,7 @@ void *handleSession(void* args){
 	int pid = fork();
 	if(pid == 0){
 		execvp(arg[0],arg);
-	}
+	}*/
 	client_list clients;
 	client_list_node *temp, *temp1;
 	
@@ -275,10 +298,17 @@ void *handleSession(void* args){
 	memset(sendBuff, '0', sizeof(sendBuff)); 
 	int n = 0;
 	
+	int height_local, width_local, zoom_local, page_local;
+	
 	while(1){
 		//run the shell script containing xdotool commands
-		system(scriptname);
-		
+		pthread_mutex_lock(&info_mutex[session_no]);
+		height_local = sessions[session_no].height;
+		width_local = sessions[session_no].width;
+		zoom_local = sessions[session_no].zoom;
+		page_local = sessions[session_no].page;
+		pthread_mutex_unlock(&info_mutex[session_no]);
+				
 		pthread_mutex_lock(&list_mutex[session_no]);
 		clients = list[session_no];
 		pthread_mutex_unlock(&list_mutex[session_no]);
@@ -290,7 +320,9 @@ void *handleSession(void* args){
 			//Do the needful here
 			//If send or recieve fails, i.e. the client is closed, in that case delete that node from linked list
 			char buff[LENGTH];
-			strcpy(buff,"Message from server");
+			
+			//Send HEIGHT recieve confirmation
+			sprintf(buff, "%d", height_local);
 			if(send(temp->client_fd, buff, strlen(buff) + 1, 0) <= 0){
 				pthread_mutex_lock(&list_mutex[session_no]);
 				temp1 = list[session_no].head;
@@ -336,11 +368,197 @@ void *handleSession(void* args){
 				temp = temp->next;
 				continue;
 			}
-			printf("%s\n", buff);
+			
+			//Send HEIGHT recieve confirmation
+			sprintf(buff, "%d", width_local);
+			if(send(temp->client_fd, buff, strlen(buff) + 1, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			memset(buff, '0', sizeof(buff));
+			if(recv(temp->client_fd, buff, LENGTH, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			
+			//Send ZOOM recieve confirmation
+			sprintf(buff, "%d", zoom_local);
+			if(send(temp->client_fd, buff, strlen(buff) + 1, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			memset(buff, '0', sizeof(buff));
+			if(recv(temp->client_fd, buff, LENGTH, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			
+			//Send PAGE recieve confirmation
+			sprintf(buff, "%d", page_local);
+			if(send(temp->client_fd, buff, strlen(buff) + 1, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			memset(buff, '0', sizeof(buff));
+			if(recv(temp->client_fd, buff, LENGTH, 0) <= 0){
+				pthread_mutex_lock(&list_mutex[session_no]);
+				temp1 = list[session_no].head;
+				if(temp == list[session_no].head && temp == list[session_no].tail){
+					list[session_no].head = list[session_no].tail = NULL;
+				}
+				else if(temp == temp1){
+					list[session_no].head = temp->next;
+				}
+				else{
+					while(temp1->next != temp){
+						temp1 = temp1->next;
+					}
+					temp1->next = temp->next;
+					if(temp == list[session_no].tail){
+						list[session_no].tail = temp1;
+					}
+				}
+				pthread_mutex_unlock(&list_mutex[session_no]);
+				temp = temp->next;
+				continue;
+			}
+			
 			temp = temp->next;
 		}
 		//Repeat the above after each 100 microseconds
 		usleep(100);
+	}
+	pthread_exit(NULL);
+}
+
+void *command_interpreter(void* args){
+	int session, height, width, zoom, page, choice;
+	while(1){
+		printf("Enter session no. to be modified: ");
+		scanf("%d", &session);
+		printf("What to modify?\n\t1. Height\n\t2. Width\n\t3. Zoom\n\t4.Page\nEnter choice");
+		scanf("%d", &choice);
+		switch(choice){
+			case 1:{	printf("Enter Height: ");
+						scanf("%d", &height);
+						pthread_mutex_lock(&info_mutex[session]);
+						sessions[session].height = height;
+						pthread_mutex_unlock(&info_mutex[session]);
+						break;
+					}
+			case 2:{	printf("Enter Width: ");
+						scanf("%d", &height);
+						pthread_mutex_lock(&info_mutex[session]);
+						sessions[session].width = height;
+						pthread_mutex_unlock(&info_mutex[session]);
+						break;
+					}
+			case 3:{	printf("Enter Zoom%% : ");
+						scanf("%d", &height);
+						pthread_mutex_lock(&info_mutex[session]);
+						sessions[session].zoom = height;
+						pthread_mutex_unlock(&info_mutex[session]);
+						break;
+					}
+			case 4:{	printf("Enter Page no.: ");
+						scanf("%d", &height);
+						pthread_mutex_lock(&info_mutex[session]);
+						sessions[session].page = height;
+						pthread_mutex_unlock(&info_mutex[session]);
+						break;
+					}
+			default: printf("Wrong choice.\n");
+		}
 	}
 	pthread_exit(NULL);
 }

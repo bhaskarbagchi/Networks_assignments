@@ -65,7 +65,56 @@ int main(int argc, char* argv[]){
 	 * Collect ocular information
 	 * use xdotool to set them
 	 */
-	
+	char command[100];
+	while(1){
+		recv(sockfd, buff, LENGTH, 0);
+		int width = atoi(buff);
+		strcpy(buff, "Recieved!!");
+		send(sockfd, buff, sizeof(buff), 0);
+		recv(sockfd, buff, LENGTH, 0);
+		int height = atoi(buff);
+		strcpy(buff, "Recieved!!");
+		send(sockfd, buff, sizeof(buff), 0);
+		recv(sockfd, buff, LENGTH, 0);
+		int zoom = atoi(buff);
+		strcpy(buff, "Recieved!!");
+		send(sockfd, buff, sizeof(buff), 0);
+		recv(sockfd, buff, LENGTH, 0);
+		int page = atoi(buff);
+		strcpy(buff, "Recieved!!");
+		send(sockfd, buff, sizeof(buff), 0);
+		
+		char zoom_str[100];
+		memset(zoom_str, '\0', sizeof(zoom_str));
+		char page_str[100];
+		memset(page_str, '\0', sizeof(page_str));
+		char temp[100];
+		memset(temp ,'\0', sizeof(temp));
+		while(zoom>0){
+			int a = zoom%10;
+			sprintf(temp,"%d %s", a, zoom_str);
+			strcpy(zoom_str, temp);
+			zoom/=10;
+			memset(temp ,'\0', sizeof(temp));
+		}
+		memset(temp ,'\0', sizeof(temp));
+		while(page>0){
+			int a = page%10;
+			sprintf(temp,"%d %s", a, page_str);
+			strcpy(page_str, temp);
+			page/=10;
+			memset(temp ,'\0', sizeof(temp));
+		}
+		
+		sprintf(command, "xdotool search --onlyvisible --name okular windowactivate");
+		system(command);
+		sprintf(command, "xdotool getactivewindow windowsize %d %d", height, width);
+		system(command);
+		sprintf(command, "xdotool key --delay 250 ctrl+f Escape ctrl+f Tab Tab Tab Tab Tab %s Return Escape", zoom_str);
+		system(command);
+		sprintf(command, "xdotool key --delay 250 ctrl+g %s Return", page_str);
+		system(command);
+	}
 	close(sockfd);
 	return 0;
 }
