@@ -9,7 +9,7 @@
 #include <pthread.h>
 
 #define LENGTH 1024
-#define NO_SESSIONS 4
+#define NO_SESSIONS 10
 
 //Datatype to store linked list of all clients
 typedef struct _client_list_node{
@@ -131,6 +131,28 @@ void *handover(void* args){
 	send(new_sock_fd, buff, strlen(buff), 0);
 	/*send all open sessions then send stop marker*/
 	memset(buff, '\0', sizeof(buff));
+	recv(new_sock_fd, buff, LENGTH, 0);
+	memset(buff, '\0', sizeof(buff));
+	
+	int j;
+	session_info tempsend;
+	for(j=0; j<NO_SESSIONS; j++){
+		pthread_mutex_lock(&info_mutex[j]);
+		tempsend = sessions[j];
+		pthread_mutex_unlock(&info_mutex[j]);
+		sprintf(buff, "Session %d:\tFile:%s\tPage:%d\tZoom Level:%d%%\tHeight:%d\tWidth:%d\n", j+1, tempsend.filename, tempsend.page, tempsend.zoom, tempsend.height, tempsend.width);
+		send(new_sock_fd, buff, strlen(buff), 0);
+		bzero(buff, LENGTH);
+		recv(new_sock_fd, buff, LENGTH, 0);
+		memset(buff, '\0', sizeof(buff));
+	}
+	strcpy(buff, "complete");
+	send(new_sock_fd, buff, strlen(buff), 0);
+	
+	
+	
+	
+	
 	
 	//Recieve request from user
 	//int check = 0;
@@ -289,6 +311,15 @@ void *handleSession(void* args){
 					break;
 		}
 	}
+	
+	pthread_mutex_lock(&info_mutex[session_no]);
+	strcpy(sessions[session_no].filename, filename);
+	sessions[session_no].page = 1;
+	sessions[session_no].zoom = 100;
+	sessions[session_no].height = 600;
+	sessions[session_no].width = 600;
+	pthread_mutex_unlock(&info_mutex[session_no]);
+	
 	/*
 	char *arg[3];
 	arg[0] = "okular";
