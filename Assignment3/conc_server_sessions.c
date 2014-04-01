@@ -64,6 +64,7 @@ int main(int arcg, char* argv[]){
 	pthread_t *create;
 	for(count = 0; count<NO_SESSIONS; count++){
 		rc = pthread_create(&thread[count], NULL, handleSession, (void *)count);
+		sleep(5);
 		if(rc){
 			printf("Error in thread creation.\n");
 			exit(0);
@@ -336,7 +337,8 @@ void *handleSession(void* args){
 	memset(sendBuff, '0', sizeof(sendBuff)); 
 	int n = 0;
 	
-	int height_local, width_local, zoom_local, page_local;
+	int height_local=0, width_local=0, zoom_local=0, page_local=0;
+	int heigh_old=0, width_old=0, zoom_old=0, page_old=0;
 	
 	while(1){
 		//run the shell script containing xdotool commands
@@ -346,7 +348,74 @@ void *handleSession(void* args){
 		zoom_local = sessions[session_no].zoom;
 		page_local = sessions[session_no].page;
 		pthread_mutex_unlock(&info_mutex[session_no]);
-				
+		
+		char command[100];
+		if(height_local != heigh_old || width_local != width_old || zoom_local != zoom_old || page_local != page_old){
+			//printf("Session Modified: Height = %d\tWidth = %d\tPage no = %d\tZoom = %d%%\n", height_local, width_local, page_local, zoom_local);
+			char zoom_str[100];
+		 	memset(zoom_str, '\0', sizeof(zoom_str));
+		 	char page_str[100];
+		 	memset(page_str, '\0', sizeof(page_str));
+		 	char temp[100];
+		 	memset(temp ,'\0', sizeof(temp));
+		 	char visible[100];
+		 	switch(session_no+1){
+				case 1: strcpy(visible, "doc0"); break;
+				case 2: strcpy(visible, "doc1"); break;
+				case 3: strcpy(visible, "GONZFM"); break;
+				case 4: strcpy(visible, "Feature"); break;
+				case 5: strcpy(visible, "Introduction"); break;
+				case 6: strcpy(visible, "untitled"); break;
+				case 7: strcpy(visible, "Pride"); break;
+				case 8: strcpy(visible, "Scala"); break;
+				case 9: strcpy(visible, "doc8"); break;
+				case 10: strcpy(visible, "Seven"); break;
+				default: strcpy(visible, "Seven");
+			}
+		 	sprintf(command, "xdotool search --onlyvisible --name %s windowactivate", visible);
+		 	system(command);
+		 	if(height_local != heigh_old){
+		 		heigh_old = height_local;
+				sprintf(command, "xdotool getactivewindow windowsize %d %d", height_local, width_local);
+		 		system(command);
+		 	}
+		 	if(width_local != width_old){
+		 		width_old = width_local;
+				sprintf(command, "xdotool getactivewindow windowsize %d %d", height_local, width_local);
+		 		system(command);
+		 	}
+		 	if(zoom_local != zoom_old){
+		 		zoom_old = zoom_local;
+				while(zoom_local>0){
+			 		int a = zoom_local%10;
+			 		sprintf(temp,"%d %s", a, zoom_str);
+			 		strcpy(zoom_str, temp);
+			 		zoom_local/=10;
+			 		memset(temp ,'\0', sizeof(temp));
+			 	}
+			 	memset(temp ,'\0', sizeof(temp));
+			 	sprintf(command, "xdotool key --delay 250 ctrl+f Escape ctrl+f Tab Tab Tab Tab Tab %s Return Escape", zoom_str);
+		 		system(command);
+		 	}
+		 	if(page_local != page_old){
+			 	page_old = page_local;
+				while(page_local>0){
+			 		int a = page_local%10;
+			 		sprintf(temp,"%d %s", a, page_str);
+			 		strcpy(page_str, temp);
+			 		page_local/=10;
+			 		memset(temp ,'\0', sizeof(temp));
+			 	}
+				sprintf(command, "xdotool key --delay 250 ctrl+g %s Return", page_str);
+			 	system(command);
+		 	}
+		}
+		
+		
+		
+		
+		
+		
 		pthread_mutex_lock(&list_mutex[session_no]);
 		clients = list[session_no];
 		pthread_mutex_unlock(&list_mutex[session_no]);
