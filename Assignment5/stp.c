@@ -11,11 +11,10 @@
 #define is_host(s) (s >= 0 && s <= 1)
 #define is_bridge(s) (s >= 2 && s <= 6)
 
-#define disable_port(s) linkinfo[s].linkup = false;ports[s].kind = BLOCKED_PORT
-#define enable_port(s)  linkinfo[s].linkup = true;ports[s].kind = DESIGNATED_PORT
+#define disable_port(s) ports[s].kind = BLOCKED_PORT
+#define enable_port(s)  ports[s].kind = DESIGNATED_PORT
 
 #define TIMEOUT     2000000
-#define SYNCHRONIZATION_TIME     5000
 typedef struct {
     CnetNICaddr    dest;
     CnetNICaddr    src;
@@ -68,7 +67,6 @@ int rootPort;
 BPDU b;
 
 CnetNICaddr broadcastAddress;
-// CnetTime synchronization_time;
 
 int compare_mac_addcess(CnetAddr o1, CnetAddr o2) {
     if (o1 < o2) {
@@ -104,6 +102,10 @@ void send_data_to_lan(CnetNICaddr dest, int num, char *buf, size_t length)
 
 void send_bpdu_to_lan(CnetNICaddr dest, int num, BPDU* bpdu, size_t length)
 {
+    if(ports[num].kind == BLOCKED_PORT) {
+        return;
+    }
+    
     ETHERPACKET    packet;
     short int      twobytes;
 
@@ -132,16 +134,12 @@ static EVENT_HANDLER(physical_ready) {
     CHECK(CNET_read_physical(&num, (char*) &f, &len));
     memcpy(&b, f.data, LEN_BPDU);
 
-    int i, compare_root_macAddress;
-    int compare_root_rootAddress;
+    int i;
     // Configuration bpdu (we do not simulate other frames)
     if (nodetype == BRIDGE) {
         if (bridgestate == ROOT) {
             // Determine if we are still the root bridge
-            compare_root_macAddress = compare_mac_addcess(b.macRoot, macAddress);
-
-
-            if (compare_root_macAddress == 1) {
+            if (b.macRoot < macAddress) {
                 // We are no longer the root!
                 bridgestate = NORMAL;
 
@@ -177,8 +175,8 @@ static EVENT_HANDLER(physical_ready) {
                         ports[i].rootPathCost = b.pathCostUpToNow + linkinfo[num].costperbyte;
                     }
                 }
-            } else if (compare_root_macAddress == 0) {
-                if (compare_mac_addcess(b.macSender, macAddress) == 0 && compare_mac_addcess(b.macSender, b.macRoot) == 0) {
+            } else if (b.macRoot == macAddress) {
+                if (b.macSender == macAddress && b.macSender == b.macRoot) {
                     if (b.numPortSender < num) {
                         printf("Disabling port %d: connected to same segment as port %d\n", num, b.numPortSender);
                         disable_port(num);
@@ -194,8 +192,7 @@ static EVENT_HANDLER(physical_ready) {
             }
         } else {
             // We were not the root
-            compare_root_rootAddress = compare_mac_addcess(b.macRoot, rootAddress);
-            if (compare_root_rootAddress == 1) {
+            if (b.macRoot < rootAddress) {
                 // There is a new root!
                 printf("Updating root info: root now mac ");
                 printf("%d attainable on port ", b.macRoot);
@@ -232,11 +229,11 @@ static EVENT_HANDLER(physical_ready) {
                         send_bpdu_to_lan(broadcastAddress, i, &bpdu, LEN_BPDU);
                     }
                 }
-            } else if (compare_root_rootAddress == 0) {
+            } else if (b.macRoot == rootAddress) {
                 // This case only happens if there is a loop on our network.
                 if ( (b.pathCostUpToNow + linkinfo[num].costperbyte) < ports[rootPort].rootPathCost
                         || (b.pathCostUpToNow + linkinfo[num].costperbyte == ports[rootPort].rootPathCost 
-                            && compare_mac_addcess(ports[rootPort].remoteDesignate, b.macSender) == -1)) {
+                            && ports[rootPort].remoteDesignate > b.macSender)) {
                     printf("Found better route to root mac %d:\n", rootAddress);
                     printf(" - Old route on port %d", rootPort);
                     printf(" had cost %f thru mac ", ports[rootPort].rootPathCost);
@@ -284,8 +281,8 @@ static EVENT_HANDLER(physical_ready) {
                                 ports[i].kind = DESIGNATED_PORT;
                                 ports[i].remoteDesignate = -1;
                             } else if ((ports[i].rootPathCost - linkinfo[i].costperbyte) == (b.pathCostUpToNow + linkinfo[num].costperbyte)) {
-                                if (compare_mac_addcess(ports[i].remoteDesignate, -1) == 0
-                                        || compare_mac_addcess(ports[i].remoteDesignate, macAddress) == -1) {
+                                if (ports[i].remoteDesignate == -1
+                                            || ports[i].remoteDesignate > macAddress) {
                                     // We are designated for this port
                                     printf(" -> Port %d is designated: this bridge has one of the best known\n route to the root for this segment and a lower mac than the other best known routes\n", i);
                                     enable_port(i);
@@ -324,9 +321,9 @@ static EVENT_HANDLER(physical_ready) {
                     // indicate it is in a better position than we are to
                     // service a particular segment.
                     if (ports[rootPort].rootPathCost > b.pathCostUpToNow
-                            || (ports[rootPort].rootPathCost == b.pathCostUpToNow && compare_mac_addcess(macAddress, b.macSender) == -1)) {
-                        if (compare_mac_addcess(ports[num].remoteDesignate, -1) == 0
-                                || compare_mac_addcess(ports[num].remoteDesignate, b.macSender) == -1) {
+                                || (ports[rootPort].rootPathCost == b.pathCostUpToNow && macAddress > b.macSender)) {
+                        if (ports[num].remoteDesignate == -1
+                                    || ports[num].remoteDesignate > b.macSender) {
                         ports[num].remoteDesignate = b.macSender;
                             printf("Received indication from mac %d", b.macSender);
                             printf(" that it is a better designate than our previous\n-ly known best route for segments atteched to port %d\n", num);
@@ -334,7 +331,7 @@ static EVENT_HANDLER(physical_ready) {
 
                         if (rootPort != num) {
                             printf("Received indication from mac %d", b.macSender);
-                            printf("  that it has a better route than ours for segment\n attached to port %d\n", num);
+                            printf("  that it has a better route than ours for segment\n attached to port %d; port no longer designated.\n", num);
                             disable_port(num);
                         }
                     } else {
@@ -381,14 +378,18 @@ static EVENT_HANDLER(start_STP) {
                 break;
         }
     }
+
+    printf("Root path cost: %f\n", ports[rootPort].rootPathCost);
+
     for (i = 1; i <= nodeinfo.nlinks; i++) {
             BPDU bpdu;
             bpdu.macRoot = rootAddress;
             bpdu.macSender = macAddress;
             bpdu.numPortSender = i;
-            bpdu.pathCostUpToNow = 0;
+            bpdu.pathCostUpToNow = ports[rootPort].rootPathCost;
             send_bpdu_to_lan(broadcastAddress, i, &bpdu, LEN_BPDU);
         }
+
     CNET_start_timer(EV_TIMER1, TIMEOUT, 0);
 }
 
@@ -424,10 +425,6 @@ EVENT_HANDLER(reboot_node) {
         }
 
         macAddress = rootAddress = nodeinfo.address;
-
-        // CNET_srand(nodeinfo.time_of_day.sec + nodeinfo.nodenumber);
-        // synchronization_time = SYNCHRONIZATION_TIME;
-        // synchronization_time *= ( (double ) CNET_rand() / LONG_MAX );
 
         printf("MAC Address: %d\n", macAddress);
         CNET_start_timer(EV_TIMER1, TIMEOUT, 0);
