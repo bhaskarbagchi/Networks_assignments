@@ -10,6 +10,5 @@ host sender {
     link to receiver
 }
 
-host receiver {
-    
+host receiver {   
 }

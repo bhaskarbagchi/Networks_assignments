@@ -1,0 +1,111 @@
+Simulation of LLC protocols
+=========================== 
+
+Ambigutiy in Simple ARQ protocol:
+---------------------------------
+Ambiguity arises if the ACKs do not contain a sequence
+number. Suppose frame 0 is transmitted, but the time-out expires prema-
+turely. Frame 0 is received correctly, and the (unnumbered) ACK is returned. In
+the meantime station A has resent frame 0. Shortly thereafter, station A receives
+an ACK and assumes it is for the last frame. Station A then proceeds to send
+frame 1, which incurs transmission errors. In the meantime the second transmis-
+sion of frame 0 has been received and acknowledged by station B. When station
+A receives the second ACK, the station assumes the ACK is for frame 1 and
+proceeds to transmit frame 2. The mechanism fails because frame 1 is not deliv-
+ered. This example shows that premature time-outs (or delayed ACKs) combined
+with loss of I-frames can result in gaps in the delivered packet sequence.
+
+One bit sliding window protocol 
+-------------------------------
+
+Results: 
+`one_bit_sliding_plot.png` 
+Optimality condition:
+-log(p) 	Frame Size 		Throughput					 
+	26 		1024 			8590.576
+
+Failure: 
+The transmitter alternately sends packets marked "0" and "1". The acknowledgments likewise say "0" and "1". Suppose that the transmitter, having sent an 0 packet, did not wait for a 0 acknowledgment, and instead immediately sent the following 1 packet. It might then receive an acknowledgment saying "expecting a 0 packet next". This would leave the transmitter in a quandary: has the receiver received both of the packets, or neither?
+and thus might fail.
+
+Window size = 1
+
+Selective-Repeat ARQ protocol variant with multi-frame receiver window 
+----------------------------------------------------------------------
+
+Results: 
+`selective_repeat_plot.png` 
+Optimality condition:
+-log(p) 	Frame Size 		Throughput					 
+	26 		1024 			8374.228
+
+Failure: 
+Consider HDLC protocol which uses a 3-bit sequence number, and has optional provision for selective repeat.However, if selective repeat is to be used, the requirement that nt+nr <= 8 must be maintained; if wr is increased to 2, wt must be decreased to 6.
+Suppose that wr =2, but an unmodified transmitter is used with wt =7, as is typically used with the go-back-N variant of HDLC. Further suppose that the receiver begins with nr =ns =0.
+Now suppose that the receiver sees the following series of packets (all modulo 8):
+0 1 2 3 4 5 6 (pause) 0
+Because wr = 2, the receiver will accept and store the final packet 0 (thinking it is packet 8 in the series), while requesting a retransmission of packet 7. However, it is also possible that the transmitter failed to receive any acknowledgments and has retransmitted packet 0. In this latter case, the receiver would accept the wrong packet as packet 8. The solution is for the transmitter to limit wt <= 6. With this restriction, the receiver knows, after receiving packet 6, that the transmitter's na ≥1, and thus the following packet numbered 0 must be packet 8. If all acknowledgements were lost, then the transmitter would have to stop after packet 5.
+
+Maximum allowable window size: 
+The maximum allowable window size is Ws =  Wr = 2^(m - 1) that is, half the sequence number space.
+
+Justification: 
+Suppose the window size WS is 2^(m - 1) or less
+and assume that the current send window is 0 to Ws - 1. Suppose also that the
+initial receive window is 0 to Ws - 1. Now suppose that frame 0 is received
+correctly but that the acknowledgment for frame 0 is lost. The transmitter can
+transmit new frames only up to frame Ws - 1. Depending on which transmis-
+sions arrive without error, Rnext will be in the range between 1 and Ws while
+Rnext + Wr - 1 will be in the range of 1 to 2Ws - 1. The maximum value of Rnext
+occurs when frames 0 through Ws - 1 are received correctly, so the value of Rnext
+is WS and the value of Rnext + Wr - 1 increases to 2Ws - 1. Crucially, the
+receiver will not receive frame 2Ws until the acknowledgment for frame 0 has
+been received at the transmitter. Any receipt of frame 0 prior to frame 2Ws
+indicates a duplicate transmission of frame 0. Therefore, the maximum size
+windows when Ws = Wr is 2^(m - 1)
+
+Go-Back-N ARQ protocol 
+----------------------
+
+Results: 
+`go_back_n_plot.png` 
+Optimality condition:
+-log(p) 	Frame Size 		Throughput					 
+	26 		1024  			8462.294
+
+Failure: 
+Suppose that we are using a 3-bit sequence number, such as is typical for HDLC. This gives N = 2^3 = 8. Since Wr=1, we must limit Wt <= 7. This is because, after transmitting 7 packets, there are 8 possible results: Anywhere from 0 to 7 packets could have been received successfully. This is 8 possibilities, and the transmitter needs enough information in the acknowledgment to distinguish them all. If the transmitter sent 8 packets without waiting for acknowledgment, it could find itself in a quandary similar to the one bit sliding window case: does the acknowledgment mean that all 8 packets were received successfully, or none of them?
+
+Maximum allowable window size:
+The maximum allowable window size is Ws =  Wr = 2^(m) - 1.
+
+Justification: 
+Consider example of 2^m =2^2 = 4 sequence numbering and window size of 4
+. The transmitter initially sends four frames in a row. The receiver sends four corre
+-sponding acknowledgments, which are all obliterated in the return channel.
+When the transmitter exhausts its available frame numbers, it goes back four
+and begins retransmitting from frame 0. When frame 0 arrives at the receiver, the
+receiver has Rnext=0, so it accepts the frame. However, the receiver does not
+know whether the ACK for the previous frame 0 was received. Consequently, the
+receiver cannot determine whether this is a new frame 0 or an old frame 0. The
+second example can be when 2^m = 4 sequence numbering, but a window
+size of 3. In this case we again suppose that the transmitter sends three conse-
+cutive frames and that acknowledgments are lost in the return channel. When the
+retransmitted frame 0 arrives at the receiver, Rnext=3, so the frame is recognized
+to be an old one.
+In general, suppose the window size Ws is 2^m - 1 or less and assume that the current
+ send window is 0 up to Ws - 1. Suppose that frame 0 is received, but the acknowledgment for frame 0
+is lost. The transmitter can only transmit new frames up to frame Ws - 1.
+Depending on which transmissions arrive without error, Rnext will be in the
+range of 1 to Ws. Crucially, the receiver will not receive frame Ws until the
+acknowledgment for frame 0 has been received at the transmitter. Therefore,
+any receipt of frame 0 prior to frame WS indicates a duplicate transmission of
+frame 0.
+
+Failure of ARQ protocols when too many frames are pending.
+----------------------------------------------------------
+
+Since the system has to store the pending frames, large number of pending frames can lead to buffer
+overflow. Moreover, the sender might get confused if it gets an acknowledgement as seen in the failure
+ cases above.
+
