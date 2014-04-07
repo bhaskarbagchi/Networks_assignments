@@ -8,8 +8,8 @@
 #define LEN_ETHERHEADER (2*sizeof(CnetNICaddr) + 2*sizeof(char))
 #define LEN_BPDU (2*sizeof(CnetAddr) + sizeof(int) + sizeof(float))
 
-#define is_host(s) (s >= 0 && s <= 1)
-#define is_bridge(s) (s >= 2 && s <= 6)
+#define is_host(s) (s.nodetype == NT_HOST)
+#define is_bridge(s) (s.nodetype == NT_ROUTER)
 
 #define disable_port(s) ports[s].kind = BLOCKED_PORT
 #define enable_port(s)  ports[s].kind = DESIGNATED_PORT
@@ -63,8 +63,6 @@ CnetAddr rootAddress;
 
 PORT* ports;
 int rootPort;
-
-BPDU b;
 
 CnetNICaddr broadcastAddress;
 
@@ -127,16 +125,16 @@ void send_bpdu_to_lan(CnetNICaddr dest, int num, BPDU* bpdu, size_t length)
 }
 
 static EVENT_HANDLER(physical_ready) {
-    int num;
+    int i, num;
     size_t len;
     ETHERPACKET f;
-
-    CHECK(CNET_read_physical(&num, (char*) &f, &len));
-    memcpy(&b, f.data, LEN_BPDU);
-
-    int i;
     // Configuration bpdu (we do not simulate other frames)
     if (nodetype == BRIDGE) {
+
+        BPDU b;
+        CNET_read_physical(&num, (char*) &f, &len);
+        memcpy(&b, f.data, LEN_BPDU);
+
         if (bridgestate == ROOT) {
             // Determine if we are still the root bridge
             if (b.macRoot < macAddress) {
@@ -362,7 +360,7 @@ static EVENT_HANDLER(physical_ready) {
 static EVENT_HANDLER(start_STP) {
     int i;
     printf("Status:\n");
-    for (int i = 1; i <= nodeinfo.nlinks; ++i)
+    for (i = 1; i <= nodeinfo.nlinks; ++i)
     {
         switch(ports[i].kind) {
             case ROOT_PORT:
@@ -378,8 +376,17 @@ static EVENT_HANDLER(start_STP) {
                 break;
         }
     }
-
     printf("Root path cost: %f\n", ports[rootPort].rootPathCost);
+    // Resetting tree information.
+    rootAddress = macAddress;
+
+    bridgestate = ROOT;
+    for (i = 1; i <= nodeinfo.nlinks; ++i)
+    {
+        ports[i].kind = DESIGNATED_PORT;
+        ports[i].rootPathCost = 0;
+        ports[i].remoteDesignate = -1;
+    }
 
     for (i = 1; i <= nodeinfo.nlinks; i++) {
             BPDU bpdu;
@@ -388,7 +395,7 @@ static EVENT_HANDLER(start_STP) {
             bpdu.numPortSender = i;
             bpdu.pathCostUpToNow = ports[rootPort].rootPathCost;
             send_bpdu_to_lan(broadcastAddress, i, &bpdu, LEN_BPDU);
-        }
+    }
 
     CNET_start_timer(EV_TIMER1, TIMEOUT, 0);
 }
@@ -407,16 +414,19 @@ EVENT_HANDLER(reboot_node) {
 
     CNET_parse_nicaddr(broadcastAddress, "ff:ff:ff:ff:ff:ff");
 
-    if (is_host(nodeinfo.nodenumber)) {
+    if (is_host(nodeinfo)) {
         nodetype = HOST;
     }
-    else if (is_bridge(nodeinfo.nodenumber)) {
+    else if (is_bridge(nodeinfo)) {
         nodetype = BRIDGE;
-        bridgestate = ROOT;
-
-        ports = (PORT*) malloc((nodeinfo.nlinks + 1) * sizeof(PORT));
         int i;
 
+        macAddress = rootAddress = nodeinfo.address;
+        printf("MAC Address: %d\n", macAddress);
+
+        ports = (PORT*) malloc((nodeinfo.nlinks + 1) * sizeof(PORT));
+        // Resetting tree information.
+        bridgestate = ROOT;
         for (i = 1; i <= nodeinfo.nlinks; ++i)
         {
             ports[i].kind = DESIGNATED_PORT;
@@ -424,9 +434,6 @@ EVENT_HANDLER(reboot_node) {
             ports[i].remoteDesignate = -1;
         }
 
-        macAddress = rootAddress = nodeinfo.address;
-
-        printf("MAC Address: %d\n", macAddress);
         CNET_start_timer(EV_TIMER1, TIMEOUT, 0);
 
     }
