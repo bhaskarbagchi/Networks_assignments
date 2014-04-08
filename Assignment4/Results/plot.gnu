@@ -3,7 +3,7 @@ unset surface
 set terminal png enhanced large
 
 set xlabel '-log(p)'
-set ylabel 'Frame size'
+set ylabel 'Window size'
 set zlabel 'Throughput'
 
 set output 'selective_repeat_plot.png'

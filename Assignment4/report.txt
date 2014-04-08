@@ -21,7 +21,7 @@ One bit sliding window protocol
 Results: 
 `one_bit_sliding_plot.png` 
 Optimality condition:
--log(p) 	Frame Size 		Throughput					 
+-log(p) 	Window Size 		Throughput					 
 	26 		1024 			8590.576
 
 Failure: 
@@ -36,8 +36,8 @@ Selective-Repeat ARQ protocol variant with multi-frame receiver window
 Results: 
 `selective_repeat_plot.png` 
 Optimality condition:
--log(p) 	Frame Size 		Throughput					 
-	26 		1024 			8374.228
+-log(p) 	Window Size 		Throughput					 
+	26 		64-128 			8374.228
 
 Failure: 
 Consider HDLC protocol which uses a 3-bit sequence number, and has optional provision for selective repeat.However, if selective repeat is to be used, the requirement that nt+nr <= 8 must be maintained; if wr is increased to 2, wt must be decreased to 6.
@@ -71,7 +71,7 @@ Results:
 `go_back_n_plot.png` 
 Optimality condition:
 -log(p) 	Frame Size 		Throughput					 
-	26 		1024  			8462.294
+	26 		64-128  			8462.294
 
 Failure: 
 Suppose that we are using a 3-bit sequence number, such as is typical for HDLC. This gives N = 2^3 = 8. Since Wr=1, we must limit Wt <= 7. This is because, after transmitting 7 packets, there are 8 possible results: Anywhere from 0 to 7 packets could have been received successfully. This is 8 possibilities, and the transmitter needs enough information in the acknowledgment to distinguish them all. If the transmitter sent 8 packets without waiting for acknowledgment, it could find itself in a quandary similar to the one bit sliding window case: does the acknowledgment mean that all 8 packets were received successfully, or none of them?
