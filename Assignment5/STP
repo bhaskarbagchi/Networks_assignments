@@ -1,0 +1,63 @@
+compile = "stp.c"
+
+bandwidth = 10Mbps
+
+host host1 {
+    x = 200
+    y = 100
+}
+
+host host2 {
+    x = 400
+    y = 100
+}
+
+router bridge4 {
+    address = 14
+    x = 200
+    y = 200
+    link to host1 {}
+}
+
+router bridge5 {
+    address = 15
+    x = 400
+    y = 200
+    link to host2 {}
+}
+
+router bridge2 {
+    address = 12
+    x = 200
+    y = 300
+    link to bridge1 {
+        
+    }
+    link to bridge5 {
+
+    }
+    link to bridge4 {
+        
+    }
+}
+
+router bridge3 {
+    address = 13
+    x = 400
+    y = 300
+    link to bridge1 {
+        
+    }
+    link to bridge4 {
+
+    }
+    link to bridge5 {
+        
+    }
+}
+
+router bridge1 {
+    address = 11
+    x = 300
+    y = 400
+}
